@@ -63,25 +63,36 @@ vec3 samplePixel(inout uint seed, int viewIndex, vec2 adjustedPixelPos)
   const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
   const vec2 d           = inUV * 2.0 - 1.0;
 
-  mat4 viewInv = inverse(frameInfo[0].view);
-  mat4 viewInv2 = inverse(frameInfo[0].view2);
-  mat4 projInv = inverse(frameInfo[0].proj);
-  mat4 projInv2 = inverse(frameInfo[0].proj2);
+  // Calculate the distance from the center of the view
+  vec2 center = vec2(gl_LaunchSizeEXT.x / 2.0, gl_LaunchSizeEXT.y / 2.0);
+  float dist = length(adjustedPixelPos - center);
 
-  vec4  origin ;  
-  vec4  target   ;
-  vec4  direction;
+  // Define the radius for the circular pattern
+  float radius = min(gl_LaunchSizeEXT.x, gl_LaunchSizeEXT.y) * 0.4;
 
-  if (viewIndex == 1)
+  mat4 viewInv, projInv;
+
+  if (viewIndex == 0 && dist > radius)
   {
-    origin    = viewInv * vec4(0.0, 0.0, 0.0, 1.0);
-    target    = projInv * vec4(d.x, d.y, 0.01, 1.0);
-    direction = viewInv * vec4(normalize(target.xyz), 0.0);
-  }else {
-    origin    = viewInv2 * vec4(0.0, 0.0, 0.0, 1.0);
-    target    = projInv2 * vec4(d.x, d.y, 0.01, 1.0);
-    direction = viewInv2 * vec4(normalize(target.xyz), 0.0);
+    viewInv = inverse(frameInfo[0].view2);
+    projInv = inverse(frameInfo[0].proj2);
+    // return vec3(0.0, 0.0, 0.0); // Return black color
   }
+  else if (viewIndex == 1)
+  {
+    viewInv = inverse(frameInfo[0].view2);
+    projInv = inverse(frameInfo[0].proj2);
+  }
+  else
+  {
+    viewInv = inverse(frameInfo[0].view);
+    projInv = inverse(frameInfo[0].proj);
+  }
+
+  vec4 origin    = viewInv * vec4(0.0, 0.0, 0.0, 1.0);
+  vec4 target    = projInv * vec4(d.x, d.y, 0.01, 1.0);
+  vec4 direction = viewInv * vec4(normalize(target.xyz), 0.0);
+
   const uint  rayFlags  = gl_RayFlagsCullBackFacingTrianglesEXT;
   const float tMin      = 0.001;
   const float tMax      = INFINITE;
@@ -148,27 +159,36 @@ void traceAlbedo(int viewIndex, vec2 adjustedPixelPos)
   const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
   const vec2 d           = inUV * 2.0 - 1.0;
 
+  mat4 viewInv, projInv;
+  // Calculate the distance from the center of the view
+  vec2 center = vec2(gl_LaunchSizeEXT.x / 2.0, gl_LaunchSizeEXT.y / 2.0);
+  float dist = length(adjustedPixelPos - center);
 
-  mat4 viewInv = inverse(frameInfo[0].view);
-  mat4 viewInv2 = inverse(frameInfo[0].view2);
-  mat4 projInv = inverse(frameInfo[0].proj);
-  mat4 projInv2 = inverse(frameInfo[0].proj2);
+  // Define the radius for the circular pattern
+  float radius = min(gl_LaunchSizeEXT.x, gl_LaunchSizeEXT.y) * 0.4;
 
-  vec4  origin ;  
-  vec4  target   ;
-  vec4  direction;
-
-  if (viewIndex == 1)
+  // Check if the pixel is outside the circular pattern
+  if (viewIndex == 0 && dist > radius)
   {
-    origin    = viewInv * vec4(0.0, 0.0, 0.0, 1.0);
-    target    = projInv * vec4(d.x, d.y, 0.01, 1.0);
-    direction = viewInv * vec4(normalize(target.xyz), 0.0);
-  }else {
-    origin    = viewInv2 * vec4(0.0, 0.0, 0.0, 1.0);
-    target    = projInv2 * vec4(d.x, d.y, 0.01, 1.0);
-    direction = viewInv2 * vec4(normalize(target.xyz), 0.0);
+    viewInv = inverse(frameInfo[0].view2);
+    projInv = inverse(frameInfo[0].proj2);
+    // gUnpackedAlbedo = vec4(0.0, 0.0, 0.0, 1.0); // Set albedo to black
+    // gUnpackedNormal = vec3(0.0, 0.0, 0.0); // Set normal to black
+  }
+  else if (viewIndex == 1)
+  {
+    viewInv = inverse(frameInfo[0].view2);
+    projInv = inverse(frameInfo[0].proj2);
+  }
+  else
+  {
+    viewInv = inverse(frameInfo[0].view);
+    projInv = inverse(frameInfo[0].proj);
   }
 
+  vec4 origin    = viewInv * vec4(0.0, 0.0, 0.0, 1.0);
+  vec4 target    = projInv * vec4(d.x, d.y, 0.01, 1.0);
+  vec4 direction = viewInv * vec4(normalize(target.xyz), 0.0);
   const uint  rayFlags  = gl_RayFlagsOpaqueEXT;
   const float tMin      = 0.001;
   const float tMax      = INFINITE;
@@ -199,7 +219,6 @@ void main()
   // Retrieve the view index
   bool isLeftView = gl_LaunchIDEXT.x < (gl_LaunchSizeEXT.x / 2);
   int viewIndex = isLeftView ? 0 : 1;
-
 
   // Adjust the pixel position for left and right views
   vec2 adjustedPixelPos = vec2(gl_LaunchIDEXT.xy);
