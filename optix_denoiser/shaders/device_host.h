@@ -24,11 +24,12 @@ struct PushConstant
 struct FrameInfo
 {
   mat4 proj;
+  mat4 proj2;
   mat4 view;
-  mat4 projInv;
-  mat4 viewInv;
+  mat4 view2;
   vec4 clearColor;
   vec3 camPos;
+  vec3 camPos2;
   float envRotation;
   float maxLuminance;
 };

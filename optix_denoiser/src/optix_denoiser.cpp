@@ -117,11 +117,8 @@ namespace nvvkhl
   public:
     OptixDenoiserEngine()
     {
-      for (int i = 0; i < 2; i++)
-      {
-        m_frameInfo[i].maxLuminance = 10.0F;
-        m_frameInfo[i].clearColor = glm::vec4(1.F);
-      }
+      m_frameInfo[0].maxLuminance = 10.0F;
+      m_frameInfo[0].clearColor = glm::vec4(1.F);
     };
 
     ~OptixDenoiserEngine() override = default;
@@ -396,38 +393,41 @@ namespace nvvkhl
       auto scope_dbg = m_dutil->DBG_SCOPE(cmd);
 
       // Get camera info
-      float view_aspect_ratio = (m_viewSize.x * 2) / m_viewSize.y;
-      glm::vec3 eye;
-      glm::vec3 center;
-      glm::vec3 up;
-      CameraManip.getLookat(eye, center, up);
+      float view_aspect_ratio = (m_viewSize.x * 0.5) / m_viewSize.y;
+      float eyeOffset = 2.04f; // Adjust this value as needed
 
-      // Update Frame buffer uniform buffer
-      const auto &clip = CameraManip.getClipPlanes();
-      CameraManip.getLookat(eye, center, up);
+      glm::vec3 eyeMid, eyeLeft, eyeRight;
+      glm::vec3 center = CameraManip.getCenter();
+      glm::vec3 up = CameraManip.getUp();
 
+      glm::vec2 clip;
+      CameraManip.setFov(90);
       for (int i = 0; i < 2; i++)
       {
+        eyeMid = CameraManip.getEye();
+        eyeLeft = eyeMid - glm::vec3(eyeOffset, 0.0f, 0.0f);
+        CameraManip.setLookat(eyeLeft, center, up);
+        clip = CameraManip.getClipPlanes();
+        // Update Frame buffer uniform buffer
         m_frameInfo[i].view = CameraManip.getMatrix();
         m_frameInfo[i].proj = glm::perspectiveRH_ZO(glm::radians(CameraManip.getFov()), view_aspect_ratio, clip.x, clip.y);
-        // print view matrix
-        std::cout << "View Matrix: " << std::endl;
-        for (int j = 0; j < 4; j++)
-        {
-          for (int k = 0; k < 4; k++)
-          {
-            std::cout << m_frameInfo[i].proj[j][k] << " ";
-          }
-          std::cout << std::endl;
-        }
-
         m_frameInfo[i].proj[1][1] *= -1;
-        m_frameInfo[i].projInv = glm::inverse(m_frameInfo[i].proj);
-        m_frameInfo[i].viewInv = glm::inverse(m_frameInfo[i].view);
-        m_frameInfo[i].camPos = eye;
+        m_frameInfo[i].camPos = eyeLeft;
+
+        eyeRight = eyeMid + glm::vec3(eyeOffset, 0.0f, 0.0f);
+        CameraManip.setLookat(eyeRight, center, up);
+        clip = CameraManip.getClipPlanes();
+        m_frameInfo[i].view2 = CameraManip.getMatrix();
+        m_frameInfo[i].proj2 = glm::perspectiveRH_ZO(glm::radians(CameraManip.getFov()), view_aspect_ratio, clip.x, clip.y);
+        m_frameInfo[i].proj2[1][1] *= -1;
+        m_frameInfo[i].camPos2 = eyeRight;
+
         m_frameInfo[i].envRotation = m_settings.envRotation;
         m_frameInfo[i].clearColor = m_settings.clearColor;
+
+        CameraManip.setLookat(eyeMid, center, up);
       }
+
       vkCmdUpdateBuffer(cmd, m_bFrameInfo.buffer, 0, sizeof(FrameInfo) * 2, m_frameInfo);
 
       // Push constant
