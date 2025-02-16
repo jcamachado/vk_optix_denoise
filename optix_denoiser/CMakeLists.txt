@@ -57,6 +57,9 @@ file(GLOB SHD_HDR  ${SHD_DIR}/*.glsl ${SHD_DIR}/*.h)
 file(GLOB SHD_SRC ${SHD_DIR}/*.vert ${SHD_DIR}/*.frag ${SHD_DIR}/*.rgen ${SHD_DIR}/*.rchit ${SHD_DIR}/*.rahit ${SHD_DIR}/*.rmiss ${SHD_DIR}/*.comp)
 
 # Compiling shaders to Spir-V header
+message(STATUS "-------------------------------")
+message(STATUS "Compilling shaders to Spir-V header")
+
 compile_glsl(
     SOURCE_FILES ${SHD_SRC}
     HEADER_FILES ${SHD_HDR}
@@ -66,6 +69,8 @@ compile_glsl(
     DEPENDENCY ${VULKAN_BUILD_DEPENDENCIES}
     FLAGS -I${SHD_DIR} -I${NVPRO_CORE_DIR} -g
     )
+message(STATUS "End of Compilling shaders to Spir-V header")
+
 
 target_sources(${PROJECT_NAME} PRIVATE ${GLSL_SOURCES} ${GLSL_HEADERS})
 source_group("Shaders/src"   FILES ${GLSL_SOURCES} )

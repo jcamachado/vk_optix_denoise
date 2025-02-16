@@ -45,7 +45,7 @@ layout(location = 1) rayPayloadInEXT GbufferPayload payloadGbuf;
 
 layout(buffer_reference, scalar) readonly buffer Materials { GltfShadeMaterial m[]; };
 
-layout(set = 1, binding = eFrameInfo) uniform FrameInfo_ { FrameInfo frameInfo; };
+layout(set = 1, binding = eFrameInfo) uniform FrameInfo_ { FrameInfo frameInfo[2]; };
 layout(set = 1, binding = eSceneDesc) readonly buffer SceneDesc_ { SceneDescription sceneDesc; };
 layout(set = 1, binding = eTextures)  uniform sampler2D texturesMap[]; // all textures
 // clang-format on

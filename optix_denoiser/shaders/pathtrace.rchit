@@ -91,9 +91,12 @@ vec3 sampleLights(in HitState state, inout uint seed, out vec3 dirToLight, out f
   vec3 radiance     = radiance_pdf.xyz;
   lightPdf          = radiance_pdf.w;
 
+  bool isLeftView = gl_LaunchIDEXT.x < (gl_LaunchSizeEXT.x / 2);
+  int viewIndex = isLeftView ? 0 : 1;
+
   // Apply rotation and environment intensity
-  dirToLight = rotate(dirToLight, vec3(0, 1, 0), frameInfo.envRotation);
-  radiance *= frameInfo.clearColor.xyz;
+  dirToLight = rotate(dirToLight, vec3(0, 1, 0), frameInfo[viewIndex].envRotation);
+  radiance *= frameInfo[viewIndex].clearColor.xyz;
 
   // Return radiance over pdf
   return radiance / lightPdf;
