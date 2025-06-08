@@ -16,6 +16,7 @@ struct PushConstant
   int maxSamples; // For RTX
   int materialId; // For raster
   int instanceId;
+  int passId;
 };
 
 #define MAX_NB_LIGHTS 1
@@ -30,6 +31,17 @@ struct FrameInfo
   vec4 clearColor;
   vec3 camPos;
   vec3 camPos2;
+  float envRotation;
+  float maxLuminance;
+};
+
+struct FrameInfoXR
+{
+  mat4 proj;
+  mat4 view;
+  vec4 clearColor;
+  // vec3 camPos;
+  // vec3 camPos2;
   float envRotation;
   float maxLuminance;
 };

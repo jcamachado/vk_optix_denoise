@@ -50,17 +50,17 @@ layout(push_constant) uniform RtxPushConstant_
 // #OPTIX_D
 vec4 gUnpackedAlbedo = vec4(0);
 vec3 gUnpackedNormal = vec3(0);
-float borderThickness = 50.0;
 float dist = 0.0;
 float radius = 0.0;
 bool skipPixel = false;
-bool intertwine = false;
+bool intertwine = false; // To drawn outer pixels n the border zone
 bool skippingArea = false;  
+bool isLeftView = false;
 
 //-----------------------------------------------------------------------
 // Sampling the pixel
 //-----------------------------------------------------------------------
-vec3 samplePixel(inout uint seed, int viewIndex, vec2 adjustedPixelPos)
+vec3 samplePixel(inout uint seed, vec2 adjustedPixelPos)
 {
   // Subpixel jitter: send the ray through a different position inside the pixel each time, to provide antialiasing.
   vec2 subpixel_jitter = pc.frame == 0 ? vec2(0.5f, 0.5f) : vec2(rand(seed), rand(seed));
@@ -73,7 +73,7 @@ vec3 samplePixel(inout uint seed, int viewIndex, vec2 adjustedPixelPos)
   mat4 viewInv, projInv;
 
     // Check if the pixel is outside the circular pattern
-  if (viewIndex == 0 && dist > radius)
+  if (isLeftView && dist > radius)
   {
     // If left view and the pixel is outside the circular pattern
     if (!skippingArea) 
@@ -93,7 +93,7 @@ vec3 samplePixel(inout uint seed, int viewIndex, vec2 adjustedPixelPos)
       }
     }
   }
-  else if (viewIndex == 1)
+  else if (!isLeftView)
   {
     viewInv = inverse(frameInfo[0].view2);
     projInv = inverse(frameInfo[0].proj2);
@@ -168,7 +168,7 @@ vec3 samplePixel(inout uint seed, int viewIndex, vec2 adjustedPixelPos)
 // Albedo and normal. Also, forcing all objects to be opaque
 //-----------------------------------------------------------------------
 // #OPTIX_D
-void traceAlbedo(int viewIndex, vec2 adjustedPixelPos, inout uint seed)
+void traceAlbedo(vec2 adjustedPixelPos)
 {
   const vec2 pixelCenter = adjustedPixelPos + vec2(0.5f, 0.5f);
   const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
@@ -178,17 +178,16 @@ void traceAlbedo(int viewIndex, vec2 adjustedPixelPos, inout uint seed)
   // Calculate the distance from the center of the view
 
 
-  // Check if the pixel is outside the circular pattern
-  if (viewIndex == 0 && dist > radius)
+  // If left vire and the pixel is outside the inner circle
+  if (isLeftView && dist > radius)
   {
-    // If left view and the pixel is outside the circular pattern
+    // If pixel is outside the middle zone(circular pattern)
     if (!skippingArea) 
     {
       viewInv = inverse(frameInfo[0].view2);
       projInv = inverse(frameInfo[0].proj2);
     }
-    else { // If the pixel is an area around the circular pattern
-      // 50% of pixels are drawn from each view
+    else { // If the pixel is an area around the middle zone (circular pattern)
       if(intertwine){      
         viewInv = inverse(frameInfo[0].view2);
         projInv = inverse(frameInfo[0].proj2);
@@ -199,12 +198,12 @@ void traceAlbedo(int viewIndex, vec2 adjustedPixelPos, inout uint seed)
       }
     }
   }
-  else if (viewIndex == 1) // If right view
+  else if (!isLeftView) // If right view, draw right view
   {
     viewInv = inverse(frameInfo[0].view2);
     projInv = inverse(frameInfo[0].proj2);
   }
-  else // If the pixel is inside the circular pattern, use the left view
+  else // If left view and pixel is inside the circular pattern, draw left view
   {
     viewInv = inverse(frameInfo[0].view);
     projInv = inverse(frameInfo[0].proj);
@@ -240,9 +239,27 @@ void traceAlbedo(int viewIndex, vec2 adjustedPixelPos, inout uint seed)
 
 void main()
 {
-  // Retrieve the view index
-  bool isLeftView = gl_LaunchIDEXT.x < (gl_LaunchSizeEXT.x / 2);
-  int viewIndex = isLeftView ? 0 : 1;
+  
+  isLeftView = gl_LaunchIDEXT.x < (gl_LaunchSizeEXT.x / 2);   // Retrieve the view index
+  float borderThickness = 200.0;
+
+
+  /*
+    Agora preciso comecar a trabalhar com os passes e ver como pegar os dados do primeiro pass
+    e passar para o segundo pass
+  */
+  // Paint left half green in first pass, right half red in second pass
+  // if(pc.passId == 0 && isLeftView)
+  // {
+  //   imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0, 1, 0, 1)); // Green
+  //   return;
+  // }
+  // else if(pc.passId == 1 && !isLeftView)
+  // {
+  //   imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1, 0, 0, 1)); // Red
+  //   return;
+  // }
+
 
   // Adjust the pixel position for left and right views
   vec2 adjustedPixelPos = vec2(gl_LaunchIDEXT.xy);
@@ -262,38 +279,59 @@ void main()
 
   /*
     Circular edge border and skip rules
-  */
-  vec2 center = vec2(gl_LaunchSizeEXT.x / 2.0, gl_LaunchSizeEXT.y / 2.0);
-  dist = length(adjustedPixelPos - center);
-  // Define the radius for the circular pattern
-  radius = min(gl_LaunchSizeEXT.x, gl_LaunchSizeEXT.y) * 0.4;
 
-  if (dist < radius + borderThickness && dist > radius - borderThickness) 
-  {
-    skippingArea = true;
-  }
-  
-  if (skippingArea && isLeftView) 
-  {
-    if (rand(seed) > 0.8){
-      skipPixel = true;
-      return;
-    }
-    else if (skippingArea && rand(seed) > 0.5)
+    Distances from center is calculated for both views
+    center: center of the whole screen
+    radius: % of the smallest screen dimension
+    borderThickness: thickness of the border
+    dist: Po
+  */
+  if (isLeftView){
+    vec2 center = vec2(gl_LaunchSizeEXT.x / 2.0, gl_LaunchSizeEXT.y / 2.0);
+    dist = length(adjustedPixelPos.xy - center);
+    radius = min(gl_LaunchSizeEXT.x/2.0, gl_LaunchSizeEXT.y) * 0.3;// Radius for the circular pattern
+
+    // radius = 100.0;
+
+    // skip half of the pixels outside the circular pattern
+    // if (dist > radius + borderThickness && 
+    //   ((gl_LaunchIDEXT.x%2 == 0 && gl_LaunchIDEXT.y%2 == 1)) || 
+    //   ((gl_LaunchIDEXT.x%2 == 1 && gl_LaunchIDEXT.y%2 == 0))) 
+    // {
+    //   return; 
+    // }
+
+
+    if (dist < radius + borderThickness && dist > radius) 
     {
-      intertwine = true;
+      skippingArea = true;
     }
-    else
+
+    if (skippingArea) 
     {
-      skipPixel = false;
-      intertwine = false;
+      // float probabilityFactor = 1.0 - (dist - (radius - borderThickness)) / (2.0 * borderThickness);
+    float probabilityFactor = (((radius+borderThickness)-dist) / borderThickness);
+      if (rand(seed) > 0.5)
+      {  // Skip 10% of the pixels in the border zone
+        skipPixel = true;
+        return;
+      }
+      else if (skippingArea && rand(seed) > probabilityFactor) 
+      { // In the zone, Draw center region in more, and increases outer region as it goes further
+        intertwine = true;
+      }
+      else
+      { // Draw what it is supposed to
+        skipPixel = false;
+        intertwine = false;
+      }
     }
   }
-  
+    
 
   for(uint s = 0; s < pc.maxSamples; s++)
   {
-    contribAccum += samplePixel(seed, viewIndex, adjustedPixelPos);
+    contribAccum += samplePixel(seed, adjustedPixelPos);
   }
   contribAccum /= pc.maxSamples;
 
@@ -304,7 +342,7 @@ void main()
 
     // #OPTIX_D
     // G-Buffers
-    traceAlbedo(viewIndex, adjustedPixelPos, seed);
+    traceAlbedo(adjustedPixelPos);
     imageStore(gAlbedo, ivec2(gl_LaunchIDEXT.xy), gUnpackedAlbedo);
     gUnpackedNormal = (gUnpackedNormal * vec3(0.5)) + vec3(0.5);  // converting to [0..1]
     imageStore(gNormal, ivec2(gl_LaunchIDEXT.xy), vec4(gUnpackedNormal, 1));

@@ -45,6 +45,10 @@
 #include <filesystem>
 #include <vulkan/vulkan_core.h>
 
+#define XR_USE_GRAPHICS_API_VULKAN
+#include <openxr/openxr.h>
+#include <openxr/openxr_platform.h>
+
 #define VMA_IMPLEMENTATION
 #include "imgui/imgui_camera_widget.h"
 #include "imgui/imgui_helper.h"
@@ -85,6 +89,257 @@
 
 std::shared_ptr<nvvkhl::ElementCamera> g_elemCamera;
 std::shared_ptr<nvvkhl::ElementBenchmarkParameters> g_elemBenchmark;
+
+// OpenXR instance, system, and session
+XrAction xrActionHandle;
+XrInstance xrInstance;
+XrSystemId xrSystemId;
+XrSession xrSession;
+XrSpace xrReferenceSpace;
+XrFrameWaitInfo frameWaitInfo = {XR_TYPE_FRAME_WAIT_INFO};
+XrFrameState frameState = {XR_TYPE_FRAME_STATE};
+std::vector<XrCompositionLayerProjectionView> projectionViews;
+// system properties
+XrSystemProperties systemProperties = {XR_TYPE_SYSTEM_PROPERTIES};
+XrSwapchain xrSwapchain;
+std::vector<XrSwapchainImageVulkanKHR> swapchainImages;
+bool m_enableXR = false;
+XrGraphicsBindingVulkanKHR graphicsBinding = {XR_TYPE_GRAPHICS_BINDING_VULKAN_KHR};
+
+void createOpenXRSwapchain()
+{
+  XrSwapchainCreateInfo swapchainCreateInfo = {XR_TYPE_SWAPCHAIN_CREATE_INFO};
+  swapchainCreateInfo.usageFlags = XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
+  swapchainCreateInfo.format = VK_FORMAT_B8G8R8A8_SRGB; // Match your Vulkan format
+  swapchainCreateInfo.sampleCount = 1;
+  swapchainCreateInfo.width = systemProperties.graphicsProperties.maxSwapchainImageWidth;   // Set based on your VR headset resolution
+  swapchainCreateInfo.height = systemProperties.graphicsProperties.maxSwapchainImageHeight; // Set based on your VR headset resolution
+  swapchainCreateInfo.faceCount = 1;
+  swapchainCreateInfo.arraySize = 2; // For stereo rendering
+  swapchainCreateInfo.mipCount = 1;
+
+  XrResult result = xrCreateSwapchain(xrSession, &swapchainCreateInfo, &xrSwapchain);
+  if (result != XR_SUCCESS)
+  {
+    throw std::runtime_error("Failed to create OpenXR swapchain");
+  }
+
+  uint32_t imageCount;
+  xrEnumerateSwapchainImages(xrSwapchain, 0, &imageCount, nullptr);
+  swapchainImages.resize(imageCount, {XR_TYPE_SWAPCHAIN_IMAGE_VULKAN_KHR});
+  xrEnumerateSwapchainImages(xrSwapchain, imageCount, &imageCount, reinterpret_cast<XrSwapchainImageBaseHeader *>(swapchainImages.data()));
+
+  std::cout << "OpenXR swapchain created successfully" << std::endl;
+}
+
+VkPhysicalDevice getOpenXRPhysicalDevice(XrInstance xrInstance, XrSystemId xrSystemId, VkInstance vkInstance)
+{
+
+  PFN_xrGetVulkanGraphicsDeviceKHR pfnGetVulkanGraphicsDeviceKHR = nullptr;
+  xrGetInstanceProcAddr(xrInstance, "xrGetVulkanGraphicsDeviceKHR", (PFN_xrVoidFunction *)&pfnGetVulkanGraphicsDeviceKHR);
+  if (!pfnGetVulkanGraphicsDeviceKHR)
+    throw std::runtime_error("Failed to get xrGetVulkanGraphicsDeviceKHR function pointer");
+  VkPhysicalDevice xrPhysicalDevice = VK_NULL_HANDLE;
+  pfnGetVulkanGraphicsDeviceKHR(xrInstance, xrSystemId, vkInstance, &xrPhysicalDevice);
+  return xrPhysicalDevice;
+}
+
+void createInstanceOpenXR() // Create OpenXR instance
+{
+  const char *enabledExtensions[] = {XR_KHR_VULKAN_ENABLE_EXTENSION_NAME};
+  const char *enabledLayers[] = {
+#ifdef _DEBUG
+      "XR_APILAYER_LUNARG_core_validation",
+#endif
+      nullptr};
+
+  std::cout << "\n ----Initializing OpenXR---- \n"
+            << std::endl;
+  XrApplicationInfo appInfo{};
+  strcpy(appInfo.applicationName, "VK_DENOISE_VR");
+  appInfo.applicationVersion = 1;
+  strcpy(appInfo.engineName, "NVVK");
+  appInfo.engineVersion = 1;
+  appInfo.apiVersion = XR_CURRENT_API_VERSION;
+
+  XrInstanceCreateInfo instanceCreateInfo = {XR_TYPE_INSTANCE_CREATE_INFO};
+  instanceCreateInfo.next = nullptr;
+  instanceCreateInfo.applicationInfo = appInfo;
+
+  instanceCreateInfo.enabledExtensionCount = 1;
+  instanceCreateInfo.enabledExtensionNames = enabledExtensions;
+#ifdef _DEBUG
+  instanceCreateInfo.enabledApiLayerCount = 1;
+  instanceCreateInfo.enabledApiLayerNames = enabledLayers;
+#endif
+
+  std::cout << "--Creating OPENXR instance--" << std::endl;
+  XrResult result = xrCreateInstance(&instanceCreateInfo, &xrInstance);
+  if (result != XR_SUCCESS)
+  {
+    throw std::runtime_error("Failed to create OpenXR instance");
+  }
+
+  std::cout << "OpenXR instance created successfully" << std::endl;
+}
+
+void getSystemOpenXR() // Get OpenXR system
+{
+  std::cout << "--Getting OPENXR system--" << std::endl;
+  XrSystemGetInfo systemGetInfo = {XR_TYPE_SYSTEM_GET_INFO};
+  systemGetInfo.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
+
+  XrResult result = xrGetSystem(xrInstance, &systemGetInfo, &xrSystemId);
+  if (result != XR_SUCCESS)
+  {
+    std::cerr << "xrGetSystem failed: " << result << std::endl;
+    throw std::runtime_error("Failed to get OpenXR system");
+  }
+
+  xrGetSystemProperties(xrInstance, xrSystemId, &systemProperties);
+
+  std::cout << "OpenXR system properties acquired successfully" << std::endl;
+}
+
+void createGraphicsBindingOpenXR(std::shared_ptr<nvvk::Context> m_context)
+{
+  // Create OpenXR session XrGraphicsBindingVulkan
+  // -- Graphics Bindings
+  std::cout << "--Setting OPENXR graphics requirements---" << std::endl;
+  graphicsBinding.instance = m_context->m_instance;
+  graphicsBinding.physicalDevice = m_context->m_physicalDevice;
+  // graphicsBinding.physicalDevice = m_context->m_physicalDevice;
+  graphicsBinding.device = m_context->m_device;
+  graphicsBinding.queueFamilyIndex = m_context->m_queueGCT.familyIndex;
+  graphicsBinding.queueIndex = m_context->m_queueGCT.queueIndex;
+}
+
+void createSessionXR(std::shared_ptr<nvvk::Context> m_context)
+{
+  std::cout << "--Creating OPENXR session--" << std::endl;
+  XrSessionCreateInfo sessionCreateInfo = {XR_TYPE_SESSION_CREATE_INFO};
+  sessionCreateInfo.next = &graphicsBinding;
+  sessionCreateInfo.systemId = xrSystemId;
+  sessionCreateInfo.type = XR_TYPE_SESSION_CREATE_INFO;
+  XrResult result = xrCreateSession(xrInstance, &sessionCreateInfo, &xrSession);
+
+  if (result != XR_SUCCESS)
+  {
+    std::cerr << "xrCreateSession failed with error code: " << result << std::endl;
+    // Convert XrResult to string for better readability
+    const char *errorStr = "";
+    switch (result)
+    {
+    case XR_ERROR_VALIDATION_FAILURE:
+      errorStr = "XR_ERROR_VALIDATION_FAILURE";
+      break;
+    case XR_ERROR_RUNTIME_FAILURE:
+      errorStr = "XR_ERROR_RUNTIME_FAILURE";
+      break;
+    case XR_ERROR_GRAPHICS_DEVICE_INVALID:
+      errorStr = "XR_ERROR_GRAPHICS_DEVICE_INVALID";
+      break;
+    // Add other cases as needed
+    default:
+      errorStr = "Unknown error";
+    }
+    std::cerr << "Error: " << errorStr << std::endl;
+    throw std::runtime_error("Failed to create OpenXR session");
+  }
+
+  std::cout << "OpenXR session created successfully" << std::endl;
+}
+
+void createReferenceSpaceXR(std::shared_ptr<nvvk::Context> m_context)
+{
+  // Create OpenXR reference space
+  XrReferenceSpaceCreateInfo referenceSpaceCreateInfo = {XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
+  referenceSpaceCreateInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL;
+  referenceSpaceCreateInfo.poseInReferenceSpace = {{0, 0, 0, 1}, {0, 0, 0}};
+
+  std::cout << "--Creating OPENXR reference space" << std::endl;
+  XrResult result = xrCreateReferenceSpace(xrSession, &referenceSpaceCreateInfo, &xrReferenceSpace);
+  if (result != XR_SUCCESS)
+  {
+    throw std::runtime_error("Failed to create OpenXR reference space");
+  }
+  std::cout << "Reference space created successfully" << std::endl;
+}
+
+void pollOpenXREvents()
+{
+  XrEventDataBuffer eventData = {XR_TYPE_EVENT_DATA_BUFFER};
+  while (xrPollEvent(xrInstance, &eventData) == XR_SUCCESS)
+  {
+    switch (eventData.type)
+    {
+    case XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED:
+    {
+      auto stateEvent = reinterpret_cast<XrEventDataSessionStateChanged *>(&eventData);
+      if (stateEvent->state == XR_SESSION_STATE_READY)
+      {
+        XrSessionBeginInfo beginInfo = {XR_TYPE_SESSION_BEGIN_INFO};
+        beginInfo.primaryViewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
+        xrBeginSession(xrSession, &beginInfo);
+      }
+      else if (stateEvent->state == XR_SESSION_STATE_STOPPING)
+      {
+        xrEndSession(xrSession);
+      }
+      else if (stateEvent->state == XR_SESSION_STATE_EXITING)
+      {
+        xrDestroySession(xrSession);
+        xrDestroyInstance(xrInstance);
+        exit(0);
+      }
+      else if (stateEvent->state == XR_SESSION_STATE_LOSS_PENDING)
+      {
+        // Handle session loss
+        std::cout << "Session lost" << std::endl;
+      }
+      break;
+    }
+    default:
+      break;
+    }
+  }
+}
+
+void handleOpenXRInput()
+{
+  XrActionStateGetInfo getInfo = {XR_TYPE_ACTION_STATE_GET_INFO};
+  getInfo.action = xrActionHandle; // Your action handle
+
+  XrActionStateBoolean state = {XR_TYPE_ACTION_STATE_BOOLEAN};
+  xrGetActionStateBoolean(xrSession, &getInfo, &state);
+
+  if (state.isActive && state.currentState)
+  {
+    // Handle input
+  }
+}
+
+void submitOpenXRFrame()
+{
+  XrFrameEndInfo frameEndInfo = {XR_TYPE_FRAME_END_INFO};
+  frameEndInfo.displayTime = frameState.predictedDisplayTime; // Get from OpenXR frame state
+  frameEndInfo.environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
+  // frameEndInfo.layerCount = 1;
+
+  XrCompositionLayerProjection layer = {XR_TYPE_COMPOSITION_LAYER_PROJECTION};
+  layer.space = xrReferenceSpace; // Reference space
+  layer.viewCount = static_cast<uint32_t>(projectionViews.size());
+  layer.views = projectionViews.data(); // Views with swapchain images
+
+  // Create an array of layer pointers
+  const XrCompositionLayerBaseHeader *layers[] = {
+      reinterpret_cast<const XrCompositionLayerBaseHeader *>(&layer)};
+
+  frameEndInfo.layerCount = 1;
+  frameEndInfo.layers = layers; // Now passing array of pointers
+
+  xrEndFrame(xrSession, &frameEndInfo);
+}
 
 namespace nvvkhl
 {
@@ -375,7 +630,119 @@ namespace nvvkhl
       }
     }
 
-    void onRender(VkCommandBuffer /*cmd*/) override
+    glm::mat4 xrPoseToMat4(const XrPosef &pose)
+    {
+      glm::quat orientation(pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z);
+      glm::mat4 rotation = glm::mat4_cast(orientation);
+      glm::mat4 translation = glm::translate(glm::mat4(1.0f), glm::vec3(pose.position.x, pose.position.y, pose.position.z));
+      return translation * rotation;
+    }
+
+    glm::mat4 xrFovToProjMatrix(const XrFovf &fov, float nearZ, float farZ)
+    {
+      float tanLeft = tanf(fov.angleLeft);
+      float tanRight = tanf(fov.angleRight);
+      float tanUp = tanf(fov.angleUp);
+      float tanDown = tanf(fov.angleDown);
+
+      glm::mat4 proj = glm::mat4(0.0f);
+      proj[0][0] = 2.0f / (tanRight - tanLeft);
+      proj[1][1] = 2.0f / (tanUp - tanDown);
+      proj[2][2] = -(farZ + nearZ) / (farZ - nearZ);
+      proj[2][3] = -1.0f;
+      proj[3][2] = -(2.0f * farZ * nearZ) / (farZ - nearZ);
+      proj[0][2] = (tanRight + tanLeft) / (tanRight - tanLeft);
+      proj[1][2] = (tanUp + tanDown) / (tanUp - tanDown);
+      return proj;
+    }
+
+    // XR Raytracing render
+    void onRenderVR(VkCommandBuffer cmd)
+    {
+      if (!m_scene->valid())
+        return;
+
+      // Begin OpenXR frame
+      XrFrameWaitInfo frameWaitInfo = {XR_TYPE_FRAME_WAIT_INFO};
+      XrFrameState frameState = {XR_TYPE_FRAME_STATE};
+      xrWaitFrame(xrSession, &frameWaitInfo, &frameState);
+
+      XrFrameBeginInfo frameBeginInfo = {XR_TYPE_FRAME_BEGIN_INFO};
+      xrBeginFrame(xrSession, &frameBeginInfo);
+
+      // Get OpenXR views
+      XrView views[2];
+      uint32_t viewCountOutput;
+      XrViewLocateInfo viewLocateInfo = {XR_TYPE_VIEW_LOCATE_INFO};
+      XrViewState viewState = {XR_TYPE_VIEW_STATE};
+      viewLocateInfo.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
+      viewLocateInfo.displayTime = frameState.predictedDisplayTime;
+      viewLocateInfo.space = xrReferenceSpace;
+
+      XrResult result = xrLocateViews(xrSession, &viewLocateInfo, &viewState, 2, &viewCountOutput, views);
+      if (result != XR_SUCCESS)
+      {
+        throw std::runtime_error("Failed to locate views");
+      }
+
+      // Prepare projection views for each eye
+      projectionViews.resize(viewCountOutput);
+
+      for (uint32_t eye = 0; eye < viewCountOutput; ++eye)
+      {
+        // Get swapchain image for this eye
+        XrSwapchainImageAcquireInfo acquireInfo = {XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
+        uint32_t swapchainImageIndex;
+        xrAcquireSwapchainImage(xrSwapchain, &acquireInfo, &swapchainImageIndex);
+
+        XrSwapchainImageWaitInfo waitInfo = {XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
+        waitInfo.timeout = XR_INFINITE_DURATION;
+        xrWaitSwapchainImage(xrSwapchain, &waitInfo);
+
+        // Update projection view
+        projectionViews[eye] = {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW};
+        projectionViews[eye].pose = views[eye].pose;
+        projectionViews[eye].fov = views[eye].fov;
+        projectionViews[eye].subImage.swapchain = xrSwapchain;
+        projectionViews[eye].subImage.imageArrayIndex = eye; // Stereo view
+        projectionViews[eye].subImage.imageRect.offset = {0, 0};
+        projectionViews[eye].subImage.imageRect.extent = {static_cast<int32_t>(m_viewSize.x),
+                                                          static_cast<int32_t>(m_viewSize.y)};
+
+        // Update camera matrices for this eye
+        m_frameInfo[eye].view = xrPoseToMat4(views[eye].pose);
+        m_frameInfo[eye].proj = xrFovToProjMatrix(views[eye].fov, 0.1f, 100.0f);
+        m_frameInfo[eye].proj[1][1] *= -1; // Flip Y for Vulkan
+        m_frameInfo[eye].camPos = glm::vec3(views[eye].pose.position.x,
+                                            views[eye].pose.position.y,
+                                            views[eye].pose.position.z);
+
+        // Update environment settings
+        m_frameInfo[eye].envRotation = m_settings.envRotation;
+        m_frameInfo[eye].clearColor = m_settings.clearColor;
+      }
+
+      // Update uniform buffer with both eye views
+      vkCmdUpdateBuffer(cmd, m_bFrameInfo.buffer, 0, sizeof(FrameInfo) * 2, m_frameInfo);
+
+      // Push constants
+      m_pushConst.maxDepth = m_settings.maxDepth;
+      m_pushConst.maxSamples = m_settings.maxSamples;
+      m_pushConst.frame = m_frame;
+
+      // Perform raytracing
+      raytraceScene(cmd);
+
+      // End OpenXR frame
+      submitOpenXRFrame();
+
+      // Release swapchain images
+      XrSwapchainImageReleaseInfo releaseInfo = {XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
+      xrReleaseSwapchainImage(xrSwapchain, &releaseInfo);
+    }
+
+    // non-XR Raytracing render
+    void onRenderNonVR(VkCommandBuffer /*cmd*/)
     {
       if (!m_scene->valid())
         return;
@@ -499,6 +866,18 @@ namespace nvvkhl
       VkCommandBufferSubmitInfo submit_info{VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO_KHR};
       submit_info.commandBuffer = cmd;
       m_app->prependCommandBuffer(submit_info); // Prepend to the frame command buffer
+    }
+
+    void onRender(VkCommandBuffer cmd) override
+    {
+      if (m_enableXR)
+      {
+        onRenderVR(cmd);
+      }
+      else
+      {
+        onRenderNonVR(cmd);
+      }
     }
 
   private:
@@ -914,10 +1293,30 @@ namespace nvvkhl
       vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtxPipe.plines[0]);
       vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtxPipe.layout, 0,
                               static_cast<uint32_t>(desc_sets.size()), desc_sets.data(), 0, nullptr);
+
+      m_pushConst.passId = 0;
       vkCmdPushConstants(cmd, m_rtxPipe.layout, VK_SHADER_STAGE_ALL, 0, sizeof(PushConstant), &m_pushConst);
 
       const auto &regions = m_sbt->getRegions();
       const auto &size = m_gBuffers->getSize();
+      vkCmdTraceRaysKHR(cmd, regions.data(), &regions[1], &regions[2], &regions[3], size.width, size.height, 1);
+
+      /*
+        Barrier to ensure writes are visible
+      */
+      VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+      barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+      barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+      vkCmdPipelineBarrier(cmd,
+                           VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                           VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                           0, 1, &barrier, 0, nullptr, 0, nullptr);
+
+      /*
+         Second pass for right eye
+      */
+      m_pushConst.passId = 1;
+      vkCmdPushConstants(cmd, m_rtxPipe.layout, VK_SHADER_STAGE_ALL, 0, sizeof(PushConstant), &m_pushConst);
       vkCmdTraceRaysKHR(cmd, regions.data(), &regions[1], &regions[2], &regions[3], size.width, size.height, 1);
 
       // Making sure the rendered image is ready to be used
@@ -1150,10 +1549,40 @@ auto main(int argc, char **argv) -> int
   auto m_context = std::make_shared<nvvk::Context>();
   m_context->init(vkSetup);
 
+  /*
+    OpenXR
+  */
+  try
+  {
+
+    createInstanceOpenXR();
+    getSystemOpenXR();
+    std::cout << "-System id" << xrSystemId << std::endl;
+
+    // VkPhysicalDevice xrPhysicalDevice = getOpenXRPhysicalDevice(xrInstance, xrSystemId, m_context->m_instance);
+    createGraphicsBindingOpenXR(m_context);
+    // std::cout << "graphics binding physical device" << xrPhysicalDevice << std::endl;
+    // std::cout << "graphics binding physical device" << graphicsBinding.device << std::endl;
+    // std::cout << "context physical device" << m_context->m_physicalDevice << std::endl;
+    createSessionXR(m_context);
+    createReferenceSpaceXR(m_context);
+    createOpenXRSwapchain();
+    m_enableXR = true;
+    std::cout << "OpenXR VR mode initialized successfully" << std::endl;
+  }
+  catch (const std::exception &e)
+  {
+    std::cerr << "OpenXR initialization failed: " << e.what() << std::endl;
+    std::cerr << "Falling back to non-VR mode" << std::endl;
+    m_enableXR = false;
+  } //---------------------------
+
   // Application Vulkan setup
   spec.instance = m_context->m_instance;
   spec.device = m_context->m_device;
   spec.physicalDevice = m_context->m_physicalDevice;
+  // cout << "Device: " << m_context->m_physicalDeviceProperties.deviceName << endl;
+  std::cout << "Device: " << m_context->m_physicalDevice << std::endl;
   spec.queues.push_back({m_context->m_queueGCT.familyIndex, m_context->m_queueGCT.queueIndex, m_context->m_queueGCT.queue});
   spec.queues.push_back({m_context->m_queueC.familyIndex, m_context->m_queueC.queueIndex, m_context->m_queueC.queue});
   spec.queues.push_back({m_context->m_queueT.familyIndex, m_context->m_queueT.queueIndex, m_context->m_queueT.queue});

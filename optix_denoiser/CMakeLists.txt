@@ -10,12 +10,35 @@ find_package(CUDAToolkit)
 if(NOT CUDAToolkit_FOUND)
   message(WARNING "Project ${PROJECT_NAME} NOT built: CUDA Toolkit not found. Please provide CUDAToolkit_ROOT to the CMake invocation.")
   return()
+  else()
+  message(STATUS "CUDA Toolkit found: ${CUDAToolkit_LIBRARY_ROOT}")
+  endif()
+
+
+find_package(OpenXR REQUIRED)
+if(NOT OpenXR_FOUND)
+  message(WARNING "Project ${PROJECT_NAME} NOT built: OpenXR not found. Please provide OpenXR_ROOT to the CMake invocation.")
+  return()
+else()
+  message(STATUS "OpenXR found: ${OpenXR_DIR}")
 endif()
+
+
 
 _add_package_Optix7()
 _add_package_VulkanSDK()
 _add_package_ImGUI()
 _add_nvpro_core_lib()
+
+
+# get_cmake_property(_variableNames VARIABLES)
+# message("aaaaa")
+# foreach(_variableName ${_variableNames})
+#     if(_variableName MATCHES "OPTIX7_INCLUDE_DIR")
+#         message(STATUS "${_variableName}=${${_variableName}}")
+#     endif()
+# endforeach()
+
 
 file(GLOB SOURCE_FILES src/*.cpp src/*.hpp src/*.h)
 add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${COMMON_SOURCE_FILES} ${PACKAGE_SOURCE_FILES})
@@ -29,7 +52,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${SAMPLES_COMMON_DIR} ${ADVAN
 target_compile_definitions(${PROJECT_NAME} PRIVATE IMGUI_DEFINE_MATH_OPERATORS)
 source_group("Other"  FILES ${COMMON_SOURCE_FILES} ${PACKAGE_SOURCE_FILES})
 
-# Adding libraries + Cuda library (LIBRARIES_OPTIMIZED)
+# Adding libraries + Cuda library (LIBRARIES_OPTIMIZED) + openxr_loader
 target_link_libraries (${PROJECT_NAME} 
         CUDA::cudart 
         CUDA::cuda_driver
@@ -39,6 +62,7 @@ target_link_libraries (${PROJECT_NAME}
         debug ${LIBRARIES_DEBUG}         #  "                 " 
         ${PLATFORM_LIBRARIES}            #  "                 " 
         ${UNIXLINKLIBS}                  #  "                 " 
+        OpenXR::openxr_loader            # Link OpenXR loader
         )
 
 if(MSVC)
