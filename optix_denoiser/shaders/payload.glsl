@@ -33,6 +33,7 @@ struct GbufferPayload
 {
   uint packAlbedo;
   uint packNormal;
+  uint packDepth;  // New depth packing
 };
 
 #endif  // PAYLOAD_H

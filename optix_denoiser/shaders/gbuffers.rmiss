@@ -20,6 +20,14 @@
 #version 460
 
 #extension GL_EXT_ray_tracing : require
+#extension GL_GOOGLE_include_directive : enable
 
+#include "payload.glsl"
 
-void main() {}
+layout(location = 1) rayPayloadInEXT GbufferPayload payloadGbuf;
+
+void main() {
+    payloadGbuf.packAlbedo = 0u;
+    payloadGbuf.packNormal = 0u;
+    payloadGbuf.packDepth  = packUnorm4x8(vec4(1.0, 1.0, 1.0, 0.0));
+}

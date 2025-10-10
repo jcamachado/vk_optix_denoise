@@ -137,4 +137,8 @@ void main()
   payloadGbuf.packAlbedo = packUnorm4x8(vec4(pbrMat.baseColor, pbrMat.opacity));
   //payloadGbuf.packAlbedo = packUnorm4x8(mat.pbrBaseColorFactor);
   payloadGbuf.packNormal = compress_unit_vec(pbrMat.N);
+  const float farDist = 25.0; // TODO: pass real far from CPU
+  float depthNorm = clamp(gl_HitTEXT / farDist, 0.0, 1.0);
+  // payloadGbuf.packDepth = packUnorm4x8(vec4(depthNorm));
+  payloadGbuf.packDepth = packUnorm4x8((vec4(depthNorm, depthNorm, depthNorm, 1.0)));
 }

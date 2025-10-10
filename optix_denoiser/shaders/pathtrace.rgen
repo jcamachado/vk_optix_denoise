@@ -38,6 +38,8 @@ layout(set = 0, binding = eTlas) uniform accelerationStructureEXT topLevelAS;
 layout(set = 0, binding = eOutImage) uniform image2D image;
 layout(set = 0, binding = eOutAlbedo) uniform image2D gAlbedo;
 layout(set = 0, binding = eOutNormal) uniform image2D gNormal;
+layout(set = 0, binding = eOutDepth)  uniform image2D gDepth;
+layout(set = 0, binding = eOutDisparity) uniform image2D gDisparity;
 
 layout(set = 1, binding = eFrameInfo) uniform FrameInfo_ { FrameInfo frameInfo[2]; };
 // clang-format on
@@ -50,58 +52,98 @@ layout(push_constant) uniform RtxPushConstant_
 // #OPTIX_D
 vec4 gUnpackedAlbedo = vec4(0);
 vec3 gUnpackedNormal = vec3(0);
+
 float dist = 0.0;
 float radius = 0.0;
-bool skipPixel = false;
-bool intertwine = false; // To drawn outer pixels n the border zone
-bool skippingArea = false;  
 bool isLeftView = false;
+
+int leftEye = 0; // Left eye index
+int rightEye = 1; // Right eye index
+int dominantEye = rightEye; // associate dominant eye to the passId = 0 (passes first) 
+bool isDominantView = false; // Dominant view only renders in first pass 
+mat4 dominantViewInv, dominantProjInv, // dominant and non-dominant eyes view matrices
+    nonDomViewInv, nonDomProjInv;
+
+bool doReprojection = false; // true if copy other view
+
+// Stereo disparity constants (pass via push constants later)
+const float baseline = 4.06;        // world units between eyes
+const float horizFovDeg = 100.0;    // dominant eye horizontal FOV
+const float farDist = 25.0;         // must match gbuffers.rchit farDist
+const float Zmin = 0.5;             // clamp to avoid huge near shifts
+const float maxShiftFrac = 0.45;    // max 45% of halfWidth
+
+
+
+// Helper to encode disparity info
+void storeDisparityDebug(ivec2 pix,
+                         float signedDisp,
+                         float maxDisp,
+                         bool validSample,
+                         bool fromReprojection)
+{
+  // Normalize signed disparity to [0,1] (center 0.5 == zero shift)
+  float normSigned = clamp(0.5 + signedDisp / (maxDisp * 2.0), 0.0, 1.0);
+  float mag = clamp(abs(signedDisp) / maxDisp, 0.0, 1.0);
+
+  // Quantization error vs integer rounding (how much info we lose if we snap)
+  float rounded = float(int(round(signedDisp)));
+  float qErr = abs(signedDisp - rounded);          // [0,0.5]
+  float normQErr = clamp(qErr / 0.5, 0.0, 1.0);
+
+  // Alpha: 1 valid reprojection pixel, 0 hole/miss, 0.5 = dominant traced (reference)
+  float a = validSample ? (fromReprojection ? 1.0 : 0.5) : 0.0;
+
+  // Pack:
+  // R: normalized signed disparity
+  // G: magnitude
+  // B: quantization error
+  // A: validity (0 hole, 0.5 traced dominant, 1 warped)
+  vec4 dbg = vec4(normSigned, mag, normQErr, a);
+  // imageStore(gNormal, pix, dbg);
+  imageStore(gDisparity, pix, dbg);
+}
 
 //-----------------------------------------------------------------------
 // Sampling the pixel
 //-----------------------------------------------------------------------
-vec3 samplePixel(inout uint seed, vec2 adjustedPixelPos)
+vec3 samplePixel(inout uint seed, vec2 adjustedPixelPos, bool captureDepth, out float outPrimaryT)
 {
+  outPrimaryT = -1.0;
   // Subpixel jitter: send the ray through a different position inside the pixel each time, to provide antialiasing.
-  vec2 subpixel_jitter = pc.frame == 0 ? vec2(0.5f, 0.5f) : vec2(rand(seed), rand(seed));
+  vec2 subpixel_jitter = (captureDepth || pc.frame == 0) ? vec2(0.5f, 0.5f) 
+                      : vec2(rand(seed), rand(seed));
 
   const vec2 pixelCenter = adjustedPixelPos + subpixel_jitter;
   const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
   const vec2 d           = inUV * 2.0 - 1.0;
 
-
   mat4 viewInv, projInv;
+  // New logic: Old intertwine logic now copies the pixel instead of calculating it
 
-    // Check if the pixel is outside the circular pattern
-  if (isLeftView && dist > radius)
+  if(dominantEye == rightEye) // If right eye is dominant, right view is default
   {
-    // If left view and the pixel is outside the circular pattern
-    if (!skippingArea) 
+    if (!isLeftView )
     {
-      viewInv = inverse(frameInfo[0].view2);
-      projInv = inverse(frameInfo[0].proj2);
-    }
-    else { // If the pixel is an area around the circular pattern
-      // 50% of pixels are drawn from each view
-      if(intertwine){      
-        viewInv = inverse(frameInfo[0].view2);
-        projInv = inverse(frameInfo[0].proj2);
-      }
-      else{
-        viewInv = inverse(frameInfo[0].view);
-        projInv = inverse(frameInfo[0].proj);
-      }
-    }
+      viewInv = dominantViewInv;
+      projInv = dominantProjInv;
+    } 
+    else { // Center of left view
+      viewInv = nonDomViewInv;
+      projInv = nonDomProjInv;
+    } 
   }
-  else if (!isLeftView)
+  else if(dominantEye == leftEye)
   {
-    viewInv = inverse(frameInfo[0].view2);
-    projInv = inverse(frameInfo[0].proj2);
-  }
-  else
-  {
-    viewInv = inverse(frameInfo[0].view);
-    projInv = inverse(frameInfo[0].proj);
+    if (isLeftView)
+    {
+      viewInv = dominantViewInv;
+      projInv = dominantProjInv;
+    } 
+    else { // Center of right view
+      viewInv = nonDomViewInv;
+      projInv = nonDomProjInv;
+    }
   }
 
   vec4 origin    = viewInv * vec4(0.0, 0.0, 0.0, 1.0);
@@ -122,7 +164,8 @@ vec3 samplePixel(inout uint seed, vec2 adjustedPixelPos)
   vec3 weightAccum  = vec3(1.0, 1.0, 1.0);
   vec3 contribAccum = vec3(0.0, 0.0, 0.0);
 
-  for(int depth = 0; depth < pc.maxDepth; depth++)
+  // bounces
+  for(int bounce = 0; bounce < pc.maxDepth; bounce++)
   {
     traceRayEXT(topLevelAS,            // acceleration structure
                 rayFlags,              // rayFlags
@@ -136,6 +179,11 @@ vec3 samplePixel(inout uint seed, vec2 adjustedPixelPos)
                 tMax,                  // ray max range
                 0                      // payload (location = 0)
     );
+    // Capture primary ray distance once (first bounce)
+    if(captureDepth && bounce == 0 && outPrimaryT < 0.0)
+      outPrimaryT = payload.hitT;
+
+
     // Accumulating results
     contribAccum += payload.contrib * weightAccum;
     weightAccum *= payload.weight;
@@ -162,7 +210,6 @@ vec3 samplePixel(inout uint seed, vec2 adjustedPixelPos)
   return contribAccum;
 }
 
-
 //-----------------------------------------------------------------------
 // Trace a single ray in the middle of the pixel to retrieve the
 // Albedo and normal. Also, forcing all objects to be opaque
@@ -174,39 +221,32 @@ void traceAlbedo(vec2 adjustedPixelPos)
   const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
   const vec2 d           = inUV * 2.0 - 1.0;
 
-  mat4 viewInv, projInv;
-  // Calculate the distance from the center of the view
-
-
-  // If left vire and the pixel is outside the inner circle
-  if (isLeftView && dist > radius)
+  mat4 viewInv, projInv; 
+  if(dominantEye == rightEye ) // If right eye is dominant, right view is default
   {
-    // If pixel is outside the middle zone(circular pattern)
-    if (!skippingArea) 
+    if (!isLeftView)
     {
-      viewInv = inverse(frameInfo[0].view2);
-      projInv = inverse(frameInfo[0].proj2);
-    }
-    else { // If the pixel is an area around the middle zone (circular pattern)
-      if(intertwine){      
-        viewInv = inverse(frameInfo[0].view2);
-        projInv = inverse(frameInfo[0].proj2);
-      }
-      else{
-        viewInv = inverse(frameInfo[0].view);
-        projInv = inverse(frameInfo[0].proj);
-      }
-    }
+      viewInv = dominantViewInv;
+      projInv = dominantProjInv;
+    } 
+    else
+    { 
+      viewInv = nonDomViewInv;
+      projInv = nonDomProjInv;
+    } 
   }
-  else if (!isLeftView) // If right view, draw right view
+  else if(dominantEye == leftEye) // If left eye is dominant, left view is default
   {
-    viewInv = inverse(frameInfo[0].view2);
-    projInv = inverse(frameInfo[0].proj2);
-  }
-  else // If left view and pixel is inside the circular pattern, draw left view
-  {
-    viewInv = inverse(frameInfo[0].view);
-    projInv = inverse(frameInfo[0].proj);
+    if (isLeftView)
+    {
+      viewInv = dominantViewInv;
+      projInv = dominantProjInv;
+    } 
+    else
+    {
+      viewInv = nonDomViewInv;
+      projInv = nonDomProjInv;
+    }
   }
 
   vec4 origin    = viewInv * vec4(0.0, 0.0, 0.0, 1.0);
@@ -218,6 +258,7 @@ void traceAlbedo(vec2 adjustedPixelPos)
 
   payloadGbuf.packAlbedo = 0;
   payloadGbuf.packNormal = 0;
+  payloadGbuf.packDepth = 0;
 
   traceRayEXT(topLevelAS,     // acceleration structure
               rayFlags,       // rayFlags
@@ -236,121 +277,286 @@ void traceAlbedo(vec2 adjustedPixelPos)
   gUnpackedNormal = decompress_unit_vec(payloadGbuf.packNormal);
 }
 
-
+/* TODO:   The dominant eye can be set by the user later. */
 void main()
 {
-  
-  isLeftView = gl_LaunchIDEXT.x < (gl_LaunchSizeEXT.x / 2);   // Retrieve the view index
+  /* Variable and Constants Setups
+      initialDisparityPx = 29; // constant disparity in beginning (approx depth Z≈72)
+  */
+  int launchWidth = int(gl_LaunchSizeEXT.x);
+  int halfWidth   = launchWidth / 2;
+  ivec2 adjustedPixelPos = ivec2(gl_LaunchIDEXT.xy);
+  ivec2 otherViewCoord = ivec2(gl_LaunchIDEXT.xy);
+
+  const float tanHalfFov = tan(radians(horizFovDeg * 0.5));
+  float   C = (baseline * float(halfWidth)) / (2.0 * tanHalfFov);
+  int     maxShift = int(float(halfWidth) * maxShiftFrac);
   float borderThickness = 200.0;
 
+  isLeftView = gl_LaunchIDEXT.x < (gl_LaunchSizeEXT.x / 2); // Retrieve the view index
+  isDominantView = (dominantEye == rightEye && !isLeftView) ||  
+      (dominantEye == leftEye && isLeftView); 
 
-  /*
-    Agora preciso comecar a trabalhar com os passes e ver como pegar os dados do primeiro pass
-    e passar para o segundo pass
+  /* --- Adjust the pixel position for left and right views ---
+    This calculation independs from the dominant eye.
   */
-  // Paint left half green in first pass, right half red in second pass
-  // if(pc.passId == 0 && isLeftView)
-  // {
-  //   imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0, 1, 0, 1)); // Green
-  //   return;
-  // }
-  // else if(pc.passId == 1 && !isLeftView)
-  // {
-  //   imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1, 0, 0, 1)); // Red
-  //   return;
-  // }
-
-
-  // Adjust the pixel position for left and right views
-  vec2 adjustedPixelPos = vec2(gl_LaunchIDEXT.xy);
   if (isLeftView)
   {
-    adjustedPixelPos.x *= 2.0; // Scale pixel position for left view
+    adjustedPixelPos.x *= 2; // Scale pixel position for left view
+    otherViewCoord.x = int(gl_LaunchIDEXT.x + (halfWidth)); // Adjust the pixel position for the right view
   }
   else
   {
-    adjustedPixelPos.x = (adjustedPixelPos.x - (gl_LaunchSizeEXT.x / 2)) * 2.0; // Scale and shift pixel position for right view
+    adjustedPixelPos.x = (adjustedPixelPos.x - (halfWidth)) * 2; // Scale and shift pixel position for right view
+    otherViewCoord.x = int(gl_LaunchIDEXT.x - (halfWidth)); // Adjust the pixel position for the left view
   }
   
+  /* --- Set rendering order based on the dominant eye. ---
+    Dominant eye must be rendered first (pc.passId=0) for reprojection
+  */
+  if (dominantEye == leftEye)
+  {
+    dominantViewInv = inverse(frameInfo[0].view); 
+    dominantProjInv = inverse(frameInfo[0].proj); 
+    nonDomViewInv = inverse(frameInfo[0].view2); 
+    nonDomProjInv = inverse(frameInfo[0].proj2); 
+
+
+    // Condicoes de parada
+    if((pc.passId == 0 && !isLeftView)){
+      return;
+    }
+    if(pc.passId == 1 && isLeftView){
+      return; // Skip the left view in the second pass
+    } // pc.passId == 1 && isRightView || pc.passId == 0 && isLeftView
+    // if((pc.passId == 0 && isLeftView)){ continue; }
+    // if(pc.passId == 1 && !isLeftView){}
+  }
+  else if (dominantEye == rightEye)
+  {
+    dominantViewInv = inverse(frameInfo[0].view2);
+    dominantProjInv = inverse(frameInfo[0].proj2); 
+    nonDomViewInv = inverse(frameInfo[0].view); 
+    nonDomProjInv = inverse(frameInfo[0].proj); 
+
+    // Condicoes de parada
+    if((pc.passId == 0 && isLeftView)){
+      return; 
+    }
+    if(pc.passId == 1 && !isLeftView){
+      return;
+    } 
+    // if(pc.passId == 0 && !isLeftView){ continue;}
+    // if(pc.passId == 1 && isLeftView){ continue;}
+  }
+
+  if (isDominantView && pc.passId == 0) {
+    storeDisparityDebug(ivec2(gl_LaunchIDEXT.xy),
+                      0.0,
+                      float(maxShift),
+                      true,
+                      false);
+  }
+
+  ivec2 shiftedOtherViewCoord = otherViewCoord;
+  // int dynamicShift = 0;
+  float disparityF = 0.0;   // float disparity (pixels, unsigned)
+  vec4 packedDepth = imageLoad(gDepth, otherViewCoord);
+  // If depth not yet written for this pixel (non-dominant pass first?), you may need a guard:
+  float storedInvDepth = 0.0;          // stored = 1 - depthNorm
+  
+  if (pc.passId == 1){
+
+    // Fetch dominant view depth (packed inverted) at otherViewCoord
+    storedInvDepth = packedDepth.r;          // stored = 1 - depthNorm
+    
+    // Reconstruct ray length t
+    float depthNorm = 1.0 - storedInvDepth;        // original depthNorm
+    if (depthNorm >= 1.0) { // far / miss: minimal shift
+      depthNorm = 1.0;
+    }
+    float tHit = depthNorm * farDist;              // ray distance (linear)
+
+    // Build the ray direction used for this pixel in dominant eye to get forward depth
+    // Reconstruct NDC of dominant eye pixel
+    // NDC: Normalized Device Coordinates
+    int domEyeX = isLeftView ? int(gl_LaunchIDEXT.x + halfWidth) : int(gl_LaunchIDEXT.x - halfWidth);
+    // int eyeIdx = otherViewCoord.x - (isLeftView ? halfWidth : 0);
+    int eyeIdx = domEyeX - (isLeftView ? halfWidth : 0);
+    float px = float(eyeIdx) + 0.5;
+    float py = float(gl_LaunchIDEXT.y) + 0.5;
+    vec2 inUV = vec2(px / float(halfWidth), py / float(gl_LaunchSizeEXT.y));
+    vec2 ndc = inUV * 2.0 - 1.0;
+
+
+    // Use dominant inverse projection to get direction (approx)
+    vec4 tgt = dominantProjInv * vec4(ndc, 0.01, 1.0);
+    vec4 dir4 = dominantViewInv * vec4(normalize(tgt.xyz), 0.0);
+    vec3 dir = normalize(dir4.xyz);
+
+    // Dominant camera forward (negative Z of view matrix basis if RHS—adjust if needed)
+    vec3 camForward = normalize((dominantViewInv * vec4(0,0,-1,0)).xyz); // derive from matrix: if viewInv is inverse(view), its third column (basis Z)
+
+    // Approx forward depth Z
+    float Z = tHit * max(dot(dir, camForward), 0.0001);
+
+    // Disparity
+    float shiftF = C / max(Z, Zmin);
+    disparityF = clamp(shiftF, 0.0, float(maxShift));
+    // dynamicShift = int(round(shiftF));
+
+    float signedDisparity = (dominantEye == rightEye) ? -disparityF : disparityF;
+    shiftedOtherViewCoord.x = otherViewCoord.x + int(round(signedDisparity));
+  }
+
+
   // Initialize the random number
   uint seed = xxhash32(uvec3(adjustedPixelPos, pc.frame));
-  // Sampling n times the pixel
-  vec3 contribAccum = vec3(0.0, 0.0, 0.0);
+  vec3 contribAccum = vec3(0.0, 0.0, 0.0); // Sampling n times the pixel
 
-  /*
-    Circular edge border and skip rules
+  /* Circular edge border and skip rules
 
     Distances from center is calculated for both views
     center: center of the whole screen
     radius: % of the smallest screen dimension
     borderThickness: thickness of the border
-    dist: Po
+    dist: distance from the pixel to the center of the screen
+    probabilityFactor: the probability of skipping the pixel in the border zone
   */
-  if (isLeftView){
-    vec2 center = vec2(gl_LaunchSizeEXT.x / 2.0, gl_LaunchSizeEXT.y / 2.0);
-    dist = length(adjustedPixelPos.xy - center);
-    radius = min(gl_LaunchSizeEXT.x/2.0, gl_LaunchSizeEXT.y) * 0.3;// Radius for the circular pattern
+  vec2 center = vec2(gl_LaunchSizeEXT.x / 2.0, gl_LaunchSizeEXT.y / 2.0);
+  dist = length(adjustedPixelPos.xy - center);
+  radius = min(gl_LaunchSizeEXT.x/2.0, gl_LaunchSizeEXT.y) * 0.3;// Radius for the circular pattern
 
-    // radius = 100.0;
+  // Deterministic per-pixel "random" value in [0,1)
+  // float maxDist = length(center); // Farthest possible distance (corner)
+  // float pixelRand = fract(sin(dot(vec2(gl_LaunchIDEXT.xy), vec2(12.9898,78.233))) * 43758.5453);
+  // Or, if you have a hash function:
+  // float pixelRand = float(xxhash32(uvec2(gl_LaunchIDEXT.xy))) / float(0xFFFFFFFFu);
+  // float pixelRand = rand(seed);
+  // float probabilityFactor = (((radius+borderThickness)-dist) / borderThickness);
+  // float probabilityFactor = 1.0 - (dist - (radius - borderThickness)) / (2.0 * borderThickness);
+  // float probabilityFactor = dist / maxDist; // 0 at center, 1 at farthest edge
+  // float probabilityFactor = 1.0;
 
-    // skip half of the pixels outside the circular pattern
-    // if (dist > radius + borderThickness && 
-    //   ((gl_LaunchIDEXT.x%2 == 0 && gl_LaunchIDEXT.y%2 == 1)) || 
-    //   ((gl_LaunchIDEXT.x%2 == 1 && gl_LaunchIDEXT.y%2 == 0))) 
-    // {
-    //   return; 
-    // }
+
+  ivec2 outPix = ivec2(gl_LaunchIDEXT.xy);
+  vec4 outColor = vec4(0,0,0,0);
+  vec4 outAlbedo = vec4(0,0,0,0);
+  vec4 outNormal = vec4(0,0,0,0);
+  bool oob = (shiftedOtherViewCoord.x < 0) || (shiftedOtherViewCoord.x >= launchWidth);
+  vec4 srcDepth = oob ? vec4(0) : imageLoad(gDepth, shiftedOtherViewCoord);
+  bool srcMiss = (oob || srcDepth.a == 0.0); // only true miss or OOB
 
 
-    if (dist < radius + borderThickness && dist > radius) 
-    {
-      skippingArea = true;
-    }
-
-    if (skippingArea) 
-    {
-      // float probabilityFactor = 1.0 - (dist - (radius - borderThickness)) / (2.0 * borderThickness);
-    float probabilityFactor = (((radius+borderThickness)-dist) / borderThickness);
-      if (rand(seed) > 0.5)
-      {  // Skip 10% of the pixels in the border zone
-        skipPixel = true;
-        return;
-      }
-      else if (skippingArea && rand(seed) > probabilityFactor) 
-      { // In the zone, Draw center region in more, and increases outer region as it goes further
-        intertwine = true;
-      }
-      else
-      { // Draw what it is supposed to
-        skipPixel = false;
-        intertwine = false;
-      }
-    }
+  // division by 5 is hard coded
+  if (!isDominantView && dist > radius && !srcMiss && adjustedPixelPos.x > launchWidth / 5) 
+  { // (dist < radius + borderThickness && dist > radius) 
+    doReprojection = true;
+  } 
+  else{
+    doReprojection = false;
   }
-    
 
+  if (doReprojection) 
+  {
+    outColor  = imageLoad(image,  shiftedOtherViewCoord);
+    outAlbedo = imageLoad(gAlbedo, shiftedOtherViewCoord);
+    outNormal = imageLoad(gNormal, shiftedOtherViewCoord);
+    outColor.a = 1.0;
+    float signedDisparity = (dominantEye == rightEye) ? -disparityF : disparityF;
+
+    if (!srcMiss) {
+      // Subpixel horizontal bilinear fetch
+      float srcXF = float(otherViewCoord.x) + signedDisparity;
+      int   x0 = int(floor(srcXF));
+      int   x1 = x0 + 1;
+      float w1 = clamp(srcXF - float(x0), 0.0, 1.0);
+      float w0 = 1.0 - w1;
+      bool o0 = (x0 < 0 || x0 >= launchWidth);
+      bool o1 = (x1 < 0 || x1 >= launchWidth);
+      vec4 c0 = o0 ? vec4(0) : imageLoad(image, ivec2(x0, otherViewCoord.y));
+      vec4 c1 = o1 ? vec4(0) : imageLoad(image, ivec2(x1, otherViewCoord.y));
+      outColor = c0 * w0 + c1 * w1;
+      outColor.a = 1.0;
+      // For albedo/normal just nearest (or replicate interpolation similarly)
+      outAlbedo = imageLoad(gAlbedo, shiftedOtherViewCoord);
+      outNormal = imageLoad(gNormal, shiftedOtherViewCoord);
+    }
+    // if (rand(seed) > 0.05) // Skip X% of the pixels in the border zone {  
+    //   return;
+    // }
+    // else if (rand(seed) > probabilityFactor) 
+    // Closer to center draw current view, draw otherview going outwards
+    // if (pixelRand > probabilityFactor) {
+    imageStore(image, outPix, outColor); // Draw the pixel from the other view
+    // Optionally copy G-buffer as well
+    imageStore(gAlbedo, outPix, outAlbedo);
+    imageStore(gNormal, outPix, outNormal);
+
+    storeDisparityDebug(outPix, signedDisparity, float(maxShift), !srcMiss, true);
+    return;
+    // }
+  }
+  /* Debug do que nao foi reprojetado*/
+  // if (pc.passId == 1 && !doReprojection){
+  //   // paint image blue
+  //   outColor = vec4(0, 0, 1, 1); // Blue color
+  //   imageStore(image, outPix, outColor);
+  //   return;
+  // }
+
+
+  if (pc.passId == 1 && !isDominantView && !doReprojection) {
+  // Mark as hole / uncovered (alpha 0) – you may prefer to treat these differently
+    storeDisparityDebug(ivec2(gl_LaunchIDEXT.xy),
+                      0.0,
+                      float(maxShift),
+                      false,
+                      true);
+  }
+
+
+  float primaryT = -1.0;
   for(uint s = 0; s < pc.maxSamples; s++)
   {
-    contribAccum += samplePixel(seed, adjustedPixelPos);
+    bool captureDepth = (s == 0);      // only once, no extra rays
+    float t0 = -1.0;
+    contribAccum += samplePixel(seed, adjustedPixelPos, captureDepth, t0);
+    if(s == 0) primaryT = t0;
   }
   contribAccum /= pc.maxSamples;
 
-  // Saving result
-  if(pc.frame == 0)
-  {  // First frame, replace the value in the buffer
-    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(contribAccum, 1.f));
 
+  // Saving result
+  if(pc.frame == 0) 
+  { // First frame, replace the value in the buffer
+    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(contribAccum, 1.f));
     // #OPTIX_D
     // G-Buffers
+    /* ------ Albedo Mapping ------*/
     traceAlbedo(adjustedPixelPos);
     imageStore(gAlbedo, ivec2(gl_LaunchIDEXT.xy), gUnpackedAlbedo);
+    /* ------ Normal Mapping ------*/
     gUnpackedNormal = (gUnpackedNormal * vec3(0.5)) + vec3(0.5);  // converting to [0..1]
     imageStore(gNormal, ivec2(gl_LaunchIDEXT.xy), vec4(gUnpackedNormal, 1));
+    /* -------- Depth mapping --------*/
+    if (isDominantView && pc.passId == 0) 
+    {
+      vec4 d = unpackUnorm4x8(payloadGbuf.packDepth);
+      imageStore(gDepth, ivec2(gl_LaunchIDEXT.xy), vec4(1.0-d.x, 1.0-d.x, 1.0-d.x, d.a));
+    }
   }
   else
   {  // Do accumulation over time
-    float a         = 1.0f / float(pc.frame + 1);
-    vec3  old_color = imageLoad(image, ivec2(gl_LaunchIDEXT.xy)).xyz;
-    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(mix(old_color, contribAccum, a), 1.f));
+    vec4 prev = imageLoad(image, ivec2(gl_LaunchIDEXT.xy));
+    if (prev.a == 0.0) {
+        // If previous was a hole, just overwrite with new traced color
+        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(contribAccum, 1.0));
+    } else {
+        float a = 1.0 / float(pc.frame + 1);
+        vec3 old_color = prev.xyz;
+        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(mix(old_color, contribAccum, a), 1.0));
+    }
   }
+    
 }

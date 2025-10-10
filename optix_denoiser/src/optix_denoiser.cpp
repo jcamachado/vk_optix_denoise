@@ -353,6 +353,8 @@ namespace nvvkhl
       eGBufResult,
       eGBufAlbedo,
       eGBufNormal,
+      eGBufDepth,
+      eGBufDisparity,
       eGbufDenoised,
     };
 
@@ -592,6 +594,10 @@ namespace nvvkhl
           ImGui::Image(m_gBuffers->getDescriptorSet(eGBufAlbedo), tumbnailSize);
           ImGui::Text("Normal");
           ImGui::Image(m_gBuffers->getDescriptorSet(eGBufNormal), tumbnailSize);
+          ImGui::Text("Depth");
+          ImGui::Image(m_gBuffers->getDescriptorSet(eGBufDepth), tumbnailSize);
+          ImGui::Text("Discrepancy");
+          ImGui::Image(m_gBuffers->getDescriptorSet(eGBufDisparity), tumbnailSize);
           ImGui::Text("Result");
           ImGui::Image(m_gBuffers->getDescriptorSet(eGBufResult), tumbnailSize);
           ImGui::Text("Denoised");
@@ -709,6 +715,9 @@ namespace nvvkhl
         projectionViews[eye].subImage.imageRect.extent = {static_cast<int32_t>(m_viewSize.x),
                                                           static_cast<int32_t>(m_viewSize.y)};
 
+        // print view sizes
+        std::cout << "View size: " << m_viewSize.x << "x" << m_viewSize.y << std::endl;
+
         // Update camera matrices for this eye
         m_frameInfo[eye].view = xrPoseToMat4(views[eye].pose);
         m_frameInfo[eye].proj = xrFovToProjMatrix(views[eye].fov, 0.1f, 100.0f);
@@ -780,6 +789,8 @@ namespace nvvkhl
         m_frameInfo[i].proj = glm::perspectiveRH_ZO(glm::radians(CameraManip.getFov()), view_aspect_ratio, clip.x, clip.y);
         m_frameInfo[i].proj[1][1] *= -1;
         m_frameInfo[i].camPos = eyeLeft;
+        // print view resolution
+        std::cout << "View resolution: " << CameraManip.getWidth() << "x" << CameraManip.getHeight() << std::endl;
 
         eyeRight = eyeMid + glm::vec3(eyeOffset, 0.0f, 0.0f);
         CameraManip.setLookat(eyeRight, center, up);
@@ -921,6 +932,8 @@ namespace nvvkhl
           VK_FORMAT_R32G32B32A32_SFLOAT, // Result
           VK_FORMAT_R32G32B32A32_SFLOAT, // Albedo
           VK_FORMAT_R32G32B32A32_SFLOAT, // Normal
+          VK_FORMAT_R8G8B8A8_UNORM,      // Depth
+          VK_FORMAT_R32G32B32A32_SFLOAT, // Disparity
           VK_FORMAT_R32G32B32A32_SFLOAT, // Denoised
       };
 
@@ -961,6 +974,9 @@ namespace nvvkhl
       // #OPTIX_D
       d->addBinding(RtxBindings::eOutAlbedo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_ALL);
       d->addBinding(RtxBindings::eOutNormal, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_ALL);
+      d->addBinding(RtxBindings::eOutDepth, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_ALL);
+      d->addBinding(RtxBindings::eOutDisparity, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_ALL);
+
       d->initLayout();
       d->initPool(1);
       m_dutil->DBG_NAME(d->getLayout());
@@ -1129,6 +1145,8 @@ namespace nvvkhl
       // #OPTIX_D
       VkDescriptorImageInfo albedo_info{{}, m_gBuffers->getColorImageView(eGBufAlbedo), VK_IMAGE_LAYOUT_GENERAL};
       VkDescriptorImageInfo normal_info{{}, m_gBuffers->getColorImageView(eGBufNormal), VK_IMAGE_LAYOUT_GENERAL};
+      VkDescriptorImageInfo depth_info{{}, m_gBuffers->getColorImageView(eGBufDepth), VK_IMAGE_LAYOUT_GENERAL};
+      VkDescriptorImageInfo discrep_info{{}, m_gBuffers->getColorImageView(eGBufDisparity), VK_IMAGE_LAYOUT_GENERAL};
 
       std::vector<VkWriteDescriptorSet> writes;
       writes.emplace_back(d->makeWrite(0, RtxBindings::eTlas, &desc_as_info));
@@ -1136,6 +1154,8 @@ namespace nvvkhl
       // #OPTIX_D
       writes.emplace_back(d->makeWrite(0, RtxBindings::eOutAlbedo, &albedo_info));
       writes.emplace_back(d->makeWrite(0, RtxBindings::eOutNormal, &normal_info));
+      writes.emplace_back(d->makeWrite(0, RtxBindings::eOutDepth, &depth_info));
+      writes.emplace_back(d->makeWrite(0, RtxBindings::eOutDisparity, &discrep_info));
 
       vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
     }
@@ -1294,6 +1314,10 @@ namespace nvvkhl
       vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtxPipe.layout, 0,
                               static_cast<uint32_t>(desc_sets.size()), desc_sets.data(), 0, nullptr);
 
+      /*
+         First pass: Dominant eye ray-tracing
+         TODO: add depth map to the push constant
+      */
       m_pushConst.passId = 0;
       vkCmdPushConstants(cmd, m_rtxPipe.layout, VK_SHADER_STAGE_ALL, 0, sizeof(PushConstant), &m_pushConst);
 
@@ -1313,7 +1337,11 @@ namespace nvvkhl
                            0, 1, &barrier, 0, nullptr, 0, nullptr);
 
       /*
-         Second pass for right eye
+         Second pass:
+          - Non-dominant eye central ray-tracing
+          - Copy pixels from the first pass (in peripheral) (TODO: ignore some side pixels)
+          - TODO: Warp pixels copied on the periphery in a transition zone
+          - TODO: Create a third pass: ray-tracing on the holes after copy and warping
       */
       m_pushConst.passId = 1;
       vkCmdPushConstants(cmd, m_rtxPipe.layout, VK_SHADER_STAGE_ALL, 0, sizeof(PushConstant), &m_pushConst);
@@ -1362,7 +1390,9 @@ namespace nvvkhl
       nvvk::Texture result{m_gBuffers->getColorImage(eGBufResult), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufResult)};
       nvvk::Texture albedo{m_gBuffers->getColorImage(eGBufAlbedo), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufAlbedo)};
       nvvk::Texture normal{m_gBuffers->getColorImage(eGBufNormal), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufNormal)};
-      m_denoiser->imageToBuffer(cmd, {result, albedo, normal});
+      nvvk::Texture depth{m_gBuffers->getColorImage(eGBufDepth), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufDepth)};
+      nvvk::Texture disparity{m_gBuffers->getColorImage(eGBufDisparity), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufDisparity)};
+      m_denoiser->imageToBuffer(cmd, {result, albedo, normal, depth, disparity});
 #endif // NVP_SUPPORTS_OPTIX7
     }
 
@@ -1549,6 +1579,21 @@ auto main(int argc, char **argv) -> int
   auto m_context = std::make_shared<nvvk::Context>();
   m_context->init(vkSetup);
 
+  // Abort early if no valid Vulkan physical device/device or if it's a CPU device (llvmpipe)
+  if (m_context->m_physicalDevice == VK_NULL_HANDLE || m_context->m_device == VK_NULL_HANDLE)
+  {
+    std::cerr << "No compatible Vulkan device found. This sample requires a GPU with Vulkan ray tracing and external memory/semaphore support." << std::endl;
+    return 1;
+  }
+  VkPhysicalDeviceProperties physProps{};
+  vkGetPhysicalDeviceProperties(m_context->m_physicalDevice, &physProps);
+  if (physProps.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU)
+  {
+    std::cerr << "Selected Vulkan device is a CPU implementation (" << physProps.deviceName
+              << "). A discrete/integrated GPU with Vulkan ray tracing is required." << std::endl;
+    return 1;
+  }
+
   /*
     OpenXR
   */
@@ -1583,6 +1628,7 @@ auto main(int argc, char **argv) -> int
   spec.physicalDevice = m_context->m_physicalDevice;
   // cout << "Device: " << m_context->m_physicalDeviceProperties.deviceName << endl;
   std::cout << "Device: " << m_context->m_physicalDevice << std::endl;
+  std::cout << "Device: " << physProps.deviceName << std::endl;
   spec.queues.push_back({m_context->m_queueGCT.familyIndex, m_context->m_queueGCT.queueIndex, m_context->m_queueGCT.queue});
   spec.queues.push_back({m_context->m_queueC.familyIndex, m_context->m_queueC.queueIndex, m_context->m_queueC.queue});
   spec.queues.push_back({m_context->m_queueT.familyIndex, m_context->m_queueT.queueIndex, m_context->m_queueT.queue});
