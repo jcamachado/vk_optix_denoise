@@ -50,7 +50,7 @@ layout(buffer_reference, scalar) readonly buffer Materials { GltfShadeMaterial m
 
 
 layout(set = 0, binding = eTlas ) uniform accelerationStructureEXT topLevelAS;
-layout(set = 1, binding = eFrameInfo) uniform FrameInfo_ { FrameInfo frameInfo[2]; };
+layout(set = 1, binding = eFrameInfo) uniform FrameInfo_ { FrameInfo frameInfo; };
 layout(set = 1, binding = eSceneDesc) readonly buffer SceneDesc_ { SceneDescription sceneDesc; };
 layout(set = 1, binding = eTextures)  uniform sampler2D texturesMap[]; // all textures
 layout(set = 2, binding = eImpSamples,  scalar)	buffer _EnvAccel { EnvAccel envSamplingData[]; };
@@ -92,8 +92,8 @@ vec3 sampleLights(in HitState state, inout uint seed, out vec3 dirToLight, out f
   lightPdf          = radiance_pdf.w;
 
   // Apply rotation and environment intensity
-  dirToLight = rotate(dirToLight, vec3(0, 1, 0), frameInfo[0].envRotation);
-  radiance *= frameInfo[0].clearColor.xyz;
+  dirToLight = rotate(dirToLight, vec3(0, 1, 0), frameInfo.envRotation);
+  radiance *= frameInfo.clearColor.xyz;
 
   // Return radiance over pdf
   return radiance / lightPdf;

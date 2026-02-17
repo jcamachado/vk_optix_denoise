@@ -32,17 +32,17 @@
 
 layout(location = 0) rayPayloadInEXT HitPayload payload;
 
-layout(set = 1, binding = eFrameInfo) uniform FrameInfo_ { FrameInfo frameInfo[2]; };
+layout(set = 1, binding = eFrameInfo) uniform FrameInfo_ { FrameInfo frameInfo; };
 layout(set = 2, binding = eHdr) uniform sampler2D hdrTexture;
 
 
 void main()
 {
   // Adding HDR lookup
-  vec3 dir        = rotate(gl_WorldRayDirectionEXT, vec3(0, 1, 0), -frameInfo[0].envRotation);
+  vec3 dir        = rotate(gl_WorldRayDirectionEXT, vec3(0, 1, 0), -frameInfo.envRotation);
   vec2 uv         = getSphericalUv(dir);  // See sampling.glsl
   vec3 env        = texture(hdrTexture, uv).rgb;
-  payload.contrib = env * frameInfo[0].clearColor.xyz;
+  payload.contrib = env * frameInfo.clearColor.xyz;
 
   payload.hitT = INFINITE;  // Ending trace
 }

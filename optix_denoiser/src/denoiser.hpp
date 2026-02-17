@@ -43,7 +43,10 @@
 #include "nvvk/debug_util_vk.hpp"
 #include "nvvk/images_vk.hpp"
 #include "nvvk/context_vk.hpp"
-#include "optix_types.h"
+//#include "optix_types.h"
+#include <optix.h>
+#include <optix_stubs.h>
+#include <optix_function_table.h>
 #include <driver_types.h>
 
 
@@ -171,7 +174,8 @@ private:
   OptixDenoiser          m_denoiser        = {};
   OptixDenoiserOptions   m_denoiserOptions = {};
   OptixDenoiserSizes     m_denoiserSizes   = {};
-  OptixDenoiserAlphaMode m_denoiserAlpha   = {OPTIX_DENOISER_ALPHA_MODE_COPY};
+  //OptixDenoiserAlphaMode m_denoiserAlpha   = {OPTIX_DENOISER_ALPHA_MODE_COPY};
+  OptixDenoiserAlphaMode m_denoiserAlpha = OPTIX_DENOISER_ALPHA_MODE_COPY;
   OptixPixelFormat       m_pixelFormat     = {};
 
   CUdeviceptr m_dStateBuffer   = {};

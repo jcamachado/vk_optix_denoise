@@ -9,41 +9,36 @@ using vec3 = glm::vec3;
 
 #include "nvvkhl/shaders/dh_lighting.h"
 
-struct PushConstant
+struct PushConstant // total 32 bytes
 {
-  int frame;      // For RTX
-  int maxDepth;   // For RTX
-  int maxSamples; // For RTX
-  int materialId; // For raster
-  int instanceId;
-  int passId;
+  int frame;      // For RTX 4 bytes
+  int maxDepth;   // For RTX 4 bytes
+  int maxSamples; // For RTX 4 bytes
+  int materialId; // For raster 4 bytes
+  int instanceId; //  4 bytes
+  int passId;    //  4 bytes
+  float middleRadius; // optional override for reprojection radius (0 = auto) 4 bytes 
+  float eyeSeparation; // 4 bytes
+ // float fovDegrees; // per eye horizontal fov in degrees 4 bytes
 };
 
 #define MAX_NB_LIGHTS 1
 #define GRID_SIZE 16
 
-struct FrameInfo
+// std140-friendly: use vec4 instead of vec3 to match GPU alignment
+struct FrameInfo // Total size 320 bytes (matches std140)
 {
-  mat4 proj;
-  mat4 proj2;
-  mat4 view;
-  mat4 view2;
-  vec4 clearColor;
-  vec3 camPos;
-  vec3 camPos2;
-  float envRotation;
-  float maxLuminance;
-};
-
-struct FrameInfoXR
-{
-  mat4 proj;
-  mat4 view;
-  vec4 clearColor;
-  // vec3 camPos;
-  // vec3 camPos2;
-  float envRotation;
-  float maxLuminance;
+	mat4 proj;          // 64 bytes (offset 0)
+	mat4 proj2;         // 64 bytes (offset 64)
+	mat4 view;          // 64 bytes (offset 128)
+	mat4 view2;         // 64 bytes (offset 192)
+	vec4 clearColor;    // 16 bytes (offset 256)
+	vec4 camPos;        // 16 bytes (offset 272) - was vec3, padded to vec4 for std140
+	vec4 camPos2;       // 16 bytes (offset 288) - was vec3, padded to vec4 for std140
+	float envRotation;  // 4 bytes  (offset 304)
+	float maxLuminance; // 4 bytes  (offset 308)
+	float _pad0;        // 4 bytes  (offset 312) - pad to 16-byte alignment
+	float _pad1;        // 4 bytes  (offset 316)
 };
 
 #endif // HOST_DEVICE_H

@@ -26,6 +26,9 @@ endif()
 
 
 _add_package_Optix7()
+message(STATUS "OptiX_INSTALL_DIR: ${OptiX_INSTALL_DIR}")
+message(STATUS "OPTIX_INCLUDE_DIR: ${OPTIX_INCLUDE_DIR}")
+message(STATUS "OPTIX_LIBRARY: ${OPTIX_LIBRARY}")
 _add_package_VulkanSDK()
 _add_package_ImGUI()
 _add_nvpro_core_lib()

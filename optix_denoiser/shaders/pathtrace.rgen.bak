@@ -1,0 +1,634 @@
+/*
+ * Copyright (c) 2019-2021, NVIDIA CORPORATION.  All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2021 NVIDIA CORPORATION
+ * SPDX-License-Identifier: Apache-2.0
+ */
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_shader_image_load_formatted : enable  // The folowing extension allow to pass images as function parameters
+
+#include "device_host.h"
+#include "dh_bindings.h"
+#include "payload.glsl"
+#include "nvvkhl/shaders/random.h"
+#include "nvvkhl/shaders/constants.h"
+#include "compress.glsl"
+
+// clang-format off
+layout(location = 0) rayPayloadEXT HitPayload payload;
+layout(location = 1) rayPayloadEXT GbufferPayload payloadGbuf;
+
+layout(set = 0, binding = eTlas) uniform accelerationStructureEXT topLevelAS;
+// #OPTIX_D
+layout(set = 0, binding = eOutImage) uniform image2D image;
+layout(set = 0, binding = eOutAlbedo) uniform image2D gAlbedo;
+layout(set = 0, binding = eOutNormal) uniform image2D gNormal;
+layout(set = 0, binding = eOutDepth)  uniform image2D gDepth;
+layout(set = 0, binding = eOutDisparity) uniform image2D gDisparity;
+// Grid min/max integer images (each texel holds a normalized depth encoded as uint)
+// Single grid image where .x = minDepth, .y = maxDepth (normalized depth)
+// layout(set = 0, binding = eOutGridMin) uniform image2D gGridMinMax;
+
+layout(set = 1, binding = eFrameInfo) uniform FrameInfo_ { FrameInfo frameInfo[2]; };
+// clang-format on
+
+layout(push_constant) uniform RtxPushConstant_
+{
+  PushConstant pc;
+};
+
+// #OPTIX_D
+vec4 gUnpackedAlbedo = vec4(0);
+vec3 gUnpackedNormal = vec3(0);
+
+float dist = 0.0;
+float radius = 0.0;
+bool isLeftView = false;
+
+int leftEye = 0; // Left eye index
+int rightEye = 1; // Right eye index
+int dominantEye = rightEye; // associate dominant eye to the passId = 0 (passes first) 
+bool isDominantView = false; // Dominant view only renders in first pass 
+mat4 dominantViewInv, dominantProjInv, // dominant and non-dominant eyes view matrices
+    nonDomViewInv, nonDomProjInv;
+
+bool doReprojection = false; // true if copy other view
+
+// Stereo disparity constants (pass via push constants later)
+const float baseline = 4.06;        // world units between eyes
+const float horizFovDeg = 100.0;    // dominant eye horizontal FOV
+const float farDist = 25.0;         // must match gbuffers.rchit farDist
+const float Zmin = 0.5;             // clamp to avoid huge near shifts
+const float maxShiftFrac = 0.45;    // max 45% of halfWidth
+
+
+
+// Helper to encode disparity info
+void storeDisparityDebug(ivec2 pix,
+                         float signedDisp,
+                         float maxDisp,
+                         bool validSample,
+                         bool fromReprojection)
+{
+  // Normalize signed disparity to [0,1] (center 0.5 == zero shift)
+  float normSigned = clamp(0.5 + signedDisp / (maxDisp * 2.0), 0.0, 1.0);
+  float mag = clamp(abs(signedDisp) / maxDisp, 0.0, 1.0);
+
+  // Quantization error vs integer rounding (how much info we lose if we snap)
+  float rounded = float(int(round(signedDisp)));
+  float qErr = abs(signedDisp - rounded);          // [0,0.5]
+  float normQErr = clamp(qErr / 0.5, 0.0, 1.0);
+
+  // Alpha: 1 valid reprojection pixel, 0 hole/miss, 0.5 = dominant traced (reference)
+  float a = validSample ? (fromReprojection ? 1.0 : 0.5) : 0.0;
+
+  // Pack:
+  // R: normalized signed disparity
+  // G: magnitude
+  // B: quantization error
+  // A: validity (0 hole, 0.5 traced dominant, 1 warped)
+  vec4 dbg = vec4(normSigned, mag, normQErr, a);
+  // imageStore(gNormal, pix, dbg);
+  imageStore(gDisparity, pix, dbg);
+}
+
+//-----------------------------------------------------------------------
+// Sampling the pixel
+//-----------------------------------------------------------------------
+vec3 samplePixel(inout uint seed, vec2 adjustedPixelPos, bool captureDepth, out float outPrimaryT)
+{
+  outPrimaryT = -1.0;
+  // Subpixel jitter: send the ray through a different position inside the pixel each time, to provide antialiasing.
+  vec2 subpixel_jitter = (captureDepth || pc.frame == 0) ? vec2(0.5f, 0.5f) 
+                      : vec2(rand(seed), rand(seed));
+
+  const vec2 pixelCenter = adjustedPixelPos + subpixel_jitter;
+  const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
+  const vec2 d           = inUV * 2.0 - 1.0;
+
+  mat4 viewInv, projInv;
+  // New logic: Old intertwine logic now copies the pixel instead of calculating it
+
+  if(dominantEye == rightEye) // If right eye is dominant, right view is default
+  {
+    if (!isLeftView )
+    {
+      viewInv = dominantViewInv;
+      projInv = dominantProjInv;
+    } 
+    else { // Center of left view
+      viewInv = nonDomViewInv;
+      projInv = nonDomProjInv;
+    } 
+  }
+  else if(dominantEye == leftEye)
+  {
+    if (isLeftView)
+    {
+      viewInv = dominantViewInv;
+      projInv = dominantProjInv;
+    } 
+    else { // Center of right view
+      viewInv = nonDomViewInv;
+      projInv = nonDomProjInv;
+    }
+  }
+
+  vec4 origin    = viewInv * vec4(0.0, 0.0, 0.0, 1.0);
+  vec4 target    = projInv * vec4(d.x, d.y, 0.01, 1.0);
+  vec4 direction = viewInv * vec4(normalize(target.xyz), 0.0);
+
+  const uint  rayFlags  = gl_RayFlagsCullBackFacingTrianglesEXT;
+  const float tMin      = 0.001;
+  const float tMax      = INFINITE;
+
+  payload.contrib      = vec3(0.0, 0.0, 0.0);
+  payload.weight       = vec3(1.0, 1.0, 1.0);
+  payload.seed         = seed;
+  payload.hitT         = INFINITE;
+  payload.rayOrigin    = origin.xyz;
+  payload.rayDirection = direction.xyz;
+
+  vec3 weightAccum  = vec3(1.0, 1.0, 1.0);
+  vec3 contribAccum = vec3(0.0, 0.0, 0.0);
+
+  // bounces
+  for(int bounce = 0; bounce < pc.maxDepth; bounce++)
+  {
+    traceRayEXT(topLevelAS,            // acceleration structure
+                rayFlags,              // rayFlags
+                0xFF,                  // cullMask
+                0,                     // sbtRecordOffset
+                0,                     // sbtRecordStride
+                0,                     // missIndex
+                payload.rayOrigin,     // ray origin
+                tMin,                  // ray min range
+                payload.rayDirection,  // ray direction
+                tMax,                  // ray max range
+                0                      // payload (location = 0)
+    );
+    // Capture primary ray distance once (first bounce)
+    if(captureDepth && bounce == 0 && outPrimaryT < 0.0)
+      outPrimaryT = payload.hitT;
+
+
+    // Accumulating results
+    contribAccum += payload.contrib * weightAccum;
+    weightAccum *= payload.weight;
+
+    // Stopping recursion
+    if(payload.hitT == INFINITE)
+      break;
+
+    // Russian-Roulette
+    float rrPcont = min(max(weightAccum.x, max(weightAccum.y, weightAccum.z)) + 0.001, 0.95);
+    if(rand(payload.seed) >= rrPcont)
+      break;  // paths with low throughput that won't contribute
+    weightAccum /= rrPcont;
+  }
+
+  // Removing fireflies
+  float lum = dot(contribAccum, vec3(0.212671f, 0.715160f, 0.072169f));
+  if(lum > frameInfo[0].maxLuminance)
+  {
+    contribAccum *= frameInfo[0].maxLuminance / lum;
+  }
+
+  seed = payload.seed;
+  return contribAccum;
+}
+
+//-----------------------------------------------------------------------
+// Trace a single ray in the middle of the pixel to retrieve the
+// Albedo and normal. Also, forcing all objects to be opaque
+//-----------------------------------------------------------------------
+// #OPTIX_D
+void traceAlbedo(vec2 adjustedPixelPos)
+{
+  const vec2 pixelCenter = adjustedPixelPos + vec2(0.5f, 0.5f);
+  const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
+  const vec2 d           = inUV * 2.0 - 1.0;
+
+  mat4 viewInv, projInv; 
+  if(dominantEye == rightEye ) // If right eye is dominant, right view is default
+  {
+    if (!isLeftView)
+    {
+      viewInv = dominantViewInv;
+      projInv = dominantProjInv;
+    } 
+    else
+    { 
+      viewInv = nonDomViewInv;
+      projInv = nonDomProjInv;
+    } 
+  }
+  else if(dominantEye == leftEye) // If left eye is dominant, left view is default
+  {
+    if (isLeftView)
+    {
+      viewInv = dominantViewInv;
+      projInv = dominantProjInv;
+    } 
+    else
+    {
+      viewInv = nonDomViewInv;
+      projInv = nonDomProjInv;
+    }
+  }
+
+  vec4 origin    = viewInv * vec4(0.0, 0.0, 0.0, 1.0);
+  vec4 target    = projInv * vec4(d.x, d.y, 0.01, 1.0);
+  vec4 direction = viewInv * vec4(normalize(target.xyz), 0.0);
+  const uint  rayFlags  = gl_RayFlagsOpaqueEXT;
+  const float tMin      = 0.001;
+  const float tMax      = INFINITE;
+
+  payloadGbuf.packAlbedo = 0;
+  payloadGbuf.packNormal = 0;
+  payloadGbuf.packDepth = 0;
+
+  traceRayEXT(topLevelAS,     // acceleration structure
+              rayFlags,       // rayFlags
+              0xFF,           // cullMask
+              1,              // sbtRecordOffset --- Using the Gbuffer.rchit
+              0,              // sbtRecordStride
+              1,              // missIndex --- Using the Gbuffer.rmiss
+              origin.xyz,     // ray origin
+              tMin,           // ray min range
+              direction.xyz,  // ray direction
+              tMax,           // ray max range
+              1               // payload --- Using the GbufferPayload
+  );
+
+  gUnpackedAlbedo = unpackUnorm4x8(payloadGbuf.packAlbedo);
+  gUnpackedNormal = decompress_unit_vec(payloadGbuf.packNormal);
+}
+
+/* TODO:   The dominant eye can be set by the user later. */
+void main()
+{
+  /* Variable and Constants Setups
+      initialDisparityPx = 29; // constant disparity in beginning (approx depth Z≈72)
+  */
+  int launchWidth = int(gl_LaunchSizeEXT.x);
+  int halfWidth   = launchWidth / 2;
+  ivec2 adjustedPixelPos = ivec2(gl_LaunchIDEXT.xy);
+  ivec2 otherViewCoord = ivec2(gl_LaunchIDEXT.xy);
+
+  const float tanHalfFov = tan(radians(horizFovDeg * 0.5));
+  float   C = (baseline * float(halfWidth)) / (2.0 * tanHalfFov);
+  int     maxShift = int(float(halfWidth) * maxShiftFrac);
+  float borderThickness = 200.0;
+
+  isLeftView = gl_LaunchIDEXT.x < (gl_LaunchSizeEXT.x / 2); // Retrieve the view index
+  isDominantView = (dominantEye == rightEye && !isLeftView) ||  
+      (dominantEye == leftEye && isLeftView); 
+
+  /* --- Adjust the pixel position for left and right views ---
+    This calculation independs from the dominant eye.
+  */
+  if (isLeftView)
+  {
+    adjustedPixelPos.x *= 2; // Scale pixel position for left view
+    otherViewCoord.x = int(gl_LaunchIDEXT.x + (halfWidth)); // Adjust the pixel position for the right view
+  }
+  else
+  {
+    adjustedPixelPos.x = (adjustedPixelPos.x - (halfWidth)) * 2; // Scale and shift pixel position for right view
+    otherViewCoord.x = int(gl_LaunchIDEXT.x - (halfWidth)); // Adjust the pixel position for the left view
+  }
+  
+  /* --- Set rendering order based on the dominant eye. ---
+    Dominant eye must be rendered first (pc.passId=0) for reprojection
+  */
+  if (dominantEye == leftEye)
+  {
+    dominantViewInv = inverse(frameInfo[0].view); 
+    dominantProjInv = inverse(frameInfo[0].proj); 
+    nonDomViewInv = inverse(frameInfo[0].view2); 
+    nonDomProjInv = inverse(frameInfo[0].proj2); 
+
+
+    // Condicoes de parada
+    if((pc.passId == 0 && !isLeftView)){
+      return;
+    }
+    if(pc.passId == 1 && isLeftView){
+      return; // Skip the left view in the second pass
+    } // pc.passId == 1 && isRightView || pc.passId == 0 && isLeftView
+    // if((pc.passId == 0 && isLeftView)){ continue; }
+    // if(pc.passId == 1 && !isLeftView){}
+  }
+  else if (dominantEye == rightEye)
+  {
+    dominantViewInv = inverse(frameInfo[0].view2);
+    dominantProjInv = inverse(frameInfo[0].proj2); 
+    nonDomViewInv = inverse(frameInfo[0].view); 
+    nonDomProjInv = inverse(frameInfo[0].proj); 
+
+    // Condicoes de parada
+    if((pc.passId == 0 && isLeftView)){
+      return; 
+    }
+    if(pc.passId == 1 && !isLeftView){
+      return;
+    } 
+    // if(pc.passId == 0 && !isLeftView){ continue;}
+    // if(pc.passId == 1 && isLeftView){ continue;}
+  }
+
+  if (isDominantView && pc.passId == 0) {
+    storeDisparityDebug(ivec2(gl_LaunchIDEXT.xy),
+                      0.0,
+                      float(maxShift),
+                      true,
+                      false);
+  }
+
+  ivec2 shiftedOtherViewCoord = otherViewCoord;
+  // int dynamicShift = 0;
+  float disparityF = 0.0;   // float disparity (pixels, unsigned)
+  vec4 packedDepth = imageLoad(gDepth, otherViewCoord);
+  // If depth not yet written for this pixel (non-dominant pass first?), you may need a guard:
+  float storedInvDepth = 0.0;          // stored = 1 - depthNorm
+  
+  if (pc.passId == 1){
+
+    // Fetch dominant view depth (packed inverted) at otherViewCoord
+    storedInvDepth = packedDepth.r;          // stored = 1 - depthNorm
+    
+    // Reconstruct ray length t
+    float depthNorm = 1.0 - storedInvDepth;        // original depthNorm
+    if (depthNorm >= 1.0) { // far / miss: minimal shift
+      depthNorm = 1.0;
+    }
+    // New for grid min/max
+    // float depthNorm = d.x; // original depth normalized
+    // ivec2 cell = ivec2(gl_LaunchIDEXT.xy) / int(GRID_SIZE);
+    // uint enc = uint(round(clamp(depthNorm, 0.0, 1.0) * 16777215.0)); // 24-bit
+    // imageAtomicMin(gGridMinMax, cell, enc);
+    // imageAtomicMax(gGridMinMax, cell, enc);
+    // vec2 gridMinMax = imageLoad(gGridMinMax, cell).xy; // [minDepth, maxDepth]
+    // float cellMin = gridMinMax.x;
+    // float cellMax = gridMinMax.y;
+
+    float tHit = depthNorm * farDist;              // ray distance (linear)
+
+    // Build the ray direction used for this pixel in dominant eye to get forward depth
+    // Reconstruct NDC of dominant eye pixel
+    // NDC: Normalized Device Coordinates
+    int domEyeX = isLeftView ? int(gl_LaunchIDEXT.x + halfWidth) : int(gl_LaunchIDEXT.x - halfWidth);
+    // int eyeIdx = otherViewCoord.x - (isLeftView ? halfWidth : 0);
+    int eyeIdx = domEyeX - (isLeftView ? halfWidth : 0);
+    float px = float(eyeIdx) + 0.5;
+    float py = float(gl_LaunchIDEXT.y) + 0.5;
+    vec2 inUV = vec2(px / float(halfWidth), py / float(gl_LaunchSizeEXT.y));
+    vec2 ndc = inUV * 2.0 - 1.0;
+
+
+    // Use dominant inverse projection to get direction (approx)
+    vec4 tgt = dominantProjInv * vec4(ndc, 0.01, 1.0);
+    vec4 dir4 = dominantViewInv * vec4(normalize(tgt.xyz), 0.0);
+    vec3 dir = normalize(dir4.xyz);
+
+    // Dominant camera forward (negative Z of view matrix basis if RHS—adjust if needed)
+    vec3 camForward = normalize((dominantViewInv * vec4(0,0,-1,0)).xyz); // derive from matrix: if viewInv is inverse(view), its third column (basis Z)
+
+    // Approx forward depth Z
+    float Z = tHit * max(dot(dir, camForward), 0.0001);
+
+    // Disparity
+    float shiftF = C / max(Z, Zmin);
+    disparityF = clamp(shiftF, 0.0, float(maxShift));
+    // dynamicShift = int(round(shiftF));
+
+    float signedDisparity = (dominantEye == rightEye) ? -disparityF : disparityF;
+    shiftedOtherViewCoord.x = otherViewCoord.x + int(round(signedDisparity));
+  }
+
+
+  // Initialize the random number
+  uint seed = xxhash32(uvec3(adjustedPixelPos, pc.frame));
+  vec3 contribAccum = vec3(0.0, 0.0, 0.0); // Sampling n times the pixel
+
+  /* Circular edge border and skip rules
+
+    Distances from center is calculated for both views
+    center: center of the whole screen
+    radius: % of the smallest screen dimension
+    borderThickness: thickness of the border
+    dist: distance from the pixel to the center of the screen
+    probabilityFactor: the probability of skipping the pixel in the border zone
+  */
+  vec2 center = vec2(gl_LaunchSizeEXT.x / 2.0, gl_LaunchSizeEXT.y / 2.0);
+  dist = length(adjustedPixelPos.xy - center);
+  radius = min(gl_LaunchSizeEXT.x/2.0, gl_LaunchSizeEXT.y) * 0.3;// Radius for the circular pattern
+
+  // Deterministic per-pixel "random" value in [0,1)
+  // float maxDist = length(center); // Farthest possible distance (corner)
+  // float pixelRand = fract(sin(dot(vec2(gl_LaunchIDEXT.xy), vec2(12.9898,78.233))) * 43758.5453);
+  // Or, if you have a hash function:
+  // float pixelRand = float(xxhash32(uvec2(gl_LaunchIDEXT.xy))) / float(0xFFFFFFFFu);
+  // float pixelRand = rand(seed);
+  // float probabilityFactor = (((radius+borderThickness)-dist) / borderThickness);
+  // float probabilityFactor = 1.0 - (dist - (radius - borderThickness)) / (2.0 * borderThickness);
+  // float probabilityFactor = dist / maxDist; // 0 at center, 1 at farthest edge
+  // float probabilityFactor = 1.0;
+
+
+  ivec2 outPix = ivec2(gl_LaunchIDEXT.xy);
+  vec4 outColor = vec4(0,0,0,0);
+  vec4 outAlbedo = vec4(0,0,0,0);
+  vec4 outNormal = vec4(0,0,0,0);
+  bool oob = (shiftedOtherViewCoord.x < 0) || (shiftedOtherViewCoord.x >= launchWidth);
+  vec4 srcDepth = oob ? vec4(0) : imageLoad(gDepth, shiftedOtherViewCoord);
+  bool srcMiss = (oob || srcDepth.a == 0.0); // only true miss or OOB
+
+
+  // division by 5 is hard coded
+  if (!isDominantView && dist > radius && !srcMiss && adjustedPixelPos.x > launchWidth / 5) 
+  { // (dist < radius + borderThickness && dist > radius) 
+    doReprojection = true;
+  } 
+  else{
+    doReprojection = false;
+  }
+
+  if (doReprojection) 
+  {
+    // --- Backward reprojection (3D reconstruction + re-project) ---
+    // Attempt to reconstruct the 3D point from the stored dominant depth and reproject it
+    bool warped = false;
+    float signedDisparity = (dominantEye == rightEye) ? -disparityF : disparityF;
+
+    if (!srcMiss) {
+      // Read dominant stored inverted depth at otherViewCoord
+      float storedInv = srcDepth.r;                // stored = 1 - depthNorm
+      float depthNorm = 1.0 - storedInv;           // [0..1], 1 -> far
+      float tHit = clamp(depthNorm, 0.0, 1.0) * farDist;
+
+      // Recompute dominant pixel NDC (same convention used when writing gDepth)
+      int domEyeX = isLeftView ? int(gl_LaunchIDEXT.x + halfWidth) : int(gl_LaunchIDEXT.x - halfWidth);
+      int eyeIdx = domEyeX - (isLeftView ? halfWidth : 0);
+      float px = float(eyeIdx) + 0.5;
+      float py = float(gl_LaunchIDEXT.y) + 0.5;
+      vec2 inUV_dom = vec2(px / float(halfWidth), py / float(gl_LaunchSizeEXT.y));
+      vec3 ndc_dom = inUV_dom * 2.0 - 1.0;
+
+      // Build dominant ray (origin + direction in world space)
+      vec4 domTgt = dominantProjInv * vec4(ndc_dom, 0.01, 1.0);
+      vec3 domDir = normalize((dominantViewInv * vec4(normalize(domTgt.xyz), 0.0)).xyz);
+      vec3 domOrigin = (dominantViewInv * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+      vec3 posWorld = domOrigin + domDir * tHit; // reconstructed world position
+
+      // Project reconstructed 3D point into the non-dominant (current) view
+      // We only have inverse matrices; invert them here for projection
+      mat4 nonDomView = inverse(nonDomViewInv);
+      mat4 nonDomProj = inverse(nonDomProjInv);
+      vec4 clip = nonDomProj * nonDomView * vec4(posWorld, 1.0);
+
+      if (abs(clip.w) > 1e-6) {
+        vec3 ndc2 = clip.xyz / clip.w;
+        vec2 inUV2 = ndc2 * 0.5 + 0.5;
+
+        // Map to full-frame pixel coordinates (each eye occupies halfWidth)
+        int sampleX = int(inUV2.x * float(halfWidth));
+        if (!isLeftView) sampleX += halfWidth; // if projecting to right eye half, offset
+        int sampleY = int(inUV2.y * float(gl_LaunchSizeEXT.y));
+
+        bool oobSample = (sampleX < 0) || (sampleX >= launchWidth) || (sampleY < 0) || (sampleY >= int(gl_LaunchSizeEXT.y));
+        if (!oobSample) {
+          ivec2 samplePix = ivec2(sampleX, sampleY);
+          // Depth consistency check: reprojected point should be in front of stored destination depth
+          vec4 dstDepthTex = imageLoad(gDepth, outPix);
+          float dstDepthNorm = (dstDepthTex.a == 0.0) ? 1.0 : (1.0 - dstDepthTex.r);
+          float dstZ = dstDepthNorm * farDist;
+          // We already have the reconstructed Z (tHit). Favor reprojection when reconstructed point is NOT behind a nearer stored depth.
+          float zDiff = dstZ - tHit;
+          const float zThresh = max(0.001, 0.005 * farDist); // tunable
+          if (zDiff >= -zThresh) {
+            // Sample color + gbuffer at samplePix (bilinear could be added)
+            vec4 sampledColor = imageLoad(image, samplePix);
+            vec4 sampledAlbedo = imageLoad(gAlbedo, samplePix);
+            vec4 sampledNormal = imageLoad(gNormal, samplePix);
+            // Accept the sample and write into destination if the sample is valid (alpha != 0.0)
+            if (sampledColor.a > 0.0) {
+              imageStore(image, outPix, vec4(sampledColor.xyz, 1.0));
+              imageStore(gAlbedo, outPix, sampledAlbedo);
+              imageStore(gNormal, outPix, sampledNormal);
+              storeDisparityDebug(outPix, signedDisparity, float(maxShift), true, true);
+              warped = true;
+            }
+          }
+        }
+      }
+    }
+
+    if (warped) {
+      return; // success, skip tracing
+    }
+
+    // Fallback: if warp failed, fall back to the simple horizontal-shift fetch (keeps previous behaviour)
+    // (this preserves current behaviour and provides a fallback for uncovered/occluded pixels)
+    {
+      // horizontal subpixel fetch using the original disparity heuristic
+      float srcXF = float(otherViewCoord.x) + signedDisparity;
+      int   x0 = int(floor(srcXF));
+      int   x1 = x0 + 1;
+      float w1 = clamp(srcXF - float(x0), 0.0, 1.0);
+      float w0 = 1.0 - w1;
+      bool o0 = (x0 < 0 || x0 >= launchWidth);
+      bool o1 = (x1 < 0 || x1 >= launchWidth);
+      vec4 c0 = o0 ? vec4(0) : imageLoad(image, ivec2(x0, otherViewCoord.y));
+      vec4 c1 = o1 ? vec4(0) : imageLoad(image, ivec2(x1, otherViewCoord.y));
+      outColor = c0 * w0 + c1 * w1;
+      outAlbedo = o0 ? imageLoad(gAlbedo, shiftedOtherViewCoord) : imageLoad(gAlbedo, ivec2(x0, otherViewCoord.y));
+      outNormal = o0 ? imageLoad(gNormal, shiftedOtherViewCoord) : imageLoad(gNormal, ivec2(x0, otherViewCoord.y));
+      imageStore(image, outPix, vec4(outColor.xyz, 1.0));
+      imageStore(gAlbedo, outPix, outAlbedo);
+      imageStore(gNormal, outPix, outNormal);
+      storeDisparityDebug(outPix, signedDisparity, float(maxShift), !srcMiss, true);
+      return;
+    }
+  }
+
+
+  
+
+
+  if (pc.passId == 1 && !isDominantView && !doReprojection) {
+  // Mark as hole / uncovered (alpha 0) – you may prefer to treat these differently
+    storeDisparityDebug(ivec2(gl_LaunchIDEXT.xy),
+                      0.0,
+                      float(maxShift),
+                      false,
+                      true);
+  }
+
+
+  float primaryT = -1.0;
+  for(uint s = 0; s < pc.maxSamples; s++)
+  {
+    bool captureDepth = (s == 0);      // only once, no extra rays
+    float t0 = -1.0;
+    contribAccum += samplePixel(seed, adjustedPixelPos, captureDepth, t0);
+    if(s == 0) primaryT = t0;
+  }
+  contribAccum /= pc.maxSamples;
+
+
+  // Saving result
+  if(pc.frame == 0) 
+  { // First frame, replace the value in the buffer
+    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(contribAccum, 1.f));
+    // #OPTIX_D
+    // G-Buffers
+    /* ------ Albedo Mapping ------*/
+    traceAlbedo(adjustedPixelPos);
+    imageStore(gAlbedo, ivec2(gl_LaunchIDEXT.xy), gUnpackedAlbedo);
+    /* ------ Normal Mapping ------*/
+    gUnpackedNormal = (gUnpackedNormal * vec3(0.5)) + vec3(0.5);  // converting to [0..1]
+    imageStore(gNormal, ivec2(gl_LaunchIDEXT.xy), vec4(gUnpackedNormal, 1));
+    /* -------- Depth mapping --------*/
+    if (isDominantView && pc.passId == 0) 
+    {
+      vec4 d = unpackUnorm4x8(payloadGbuf.packDepth);
+      imageStore(gDepth, ivec2(gl_LaunchIDEXT.xy), vec4(1.0-d.x, 1.0-d.x, 1.0-d.x, d.a));
+      // Update grid min/max (store normalized depth in [0,1] as 24-bit uint)
+      // float depthNorm = d.x; // original depth normalized
+      // ivec2 cell = ivec2(gl_LaunchIDEXT.xy) / int(GRID_SIZE);
+      // uint enc = uint(round(clamp(depthNorm, 0.0, 1.0) * 16777215.0)); // 24-bit
+      // imageAtomicMin(gGridMin, cell, enc);
+      // imageAtomicMax(gGridMax, cell, enc);
+    }
+  }
+  else
+  {  // Do accumulation over time
+    vec4 prev = imageLoad(image, ivec2(gl_LaunchIDEXT.xy));
+    if (prev.a == 0.0) {
+        // If previous was a hole, just overwrite with new traced color
+        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(contribAccum, 1.0));
+    } else {
+        float a = 1.0 / float(pc.frame + 1);
+        vec3 old_color = prev.xyz;
+        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(mix(old_color, contribAccum, a), 1.0));
+    }
+  }
+    
+}
