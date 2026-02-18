@@ -57,10 +57,6 @@ const float MAX_COMFORTABLE_PARALLAX_ANGLE = 1.5; // degrees from reference
 const float VIEWER_DISTANCE_METERS = 0.5; // 50cm typical viewing distance - make this a uniform if possible
 
 // Your screen dimensions
-const float SCREEN_WIDTH_PIXELS = 1612.0;
-const float SCREEN_HEIGHT_PIXELS = 1023.0;
-const float HALF_WIDTH_PIXELS = SCREEN_WIDTH_PIXELS / 2.0;
-
 
 float dist = 0.0; // distance from center of the screen
 float radius = 0.0;
@@ -98,9 +94,9 @@ float getScreenDistancePixels() {
     float fovRad = radians(fovDegrees);
     float tanHalfFov = tan(fovRad * 0.5);
     
-    // Calculate how many pixels represent 1 meter at the screen
-    float pixelsPerMeter = (HALF_WIDTH_PIXELS / 2.0) / (VIEWER_DISTANCE_METERS * tanHalfFov);
-    
+    // Use actual half-width from launch size, not hardcoded constant
+    float halfWidthPixels = float(halfWidth);
+    float pixelsPerMeter = (halfWidthPixels / 2.0) / (VIEWER_DISTANCE_METERS * tanHalfFov);
     
     return VIEWER_DISTANCE_METERS * pixelsPerMeter;
 }
@@ -396,34 +392,38 @@ float calculateParallaxPixels(float depth, float fovDegrees) {
     float focalLengthPixels = float(halfWidth) * 0.5 / tanHalfFov;
     return (eyeSeparation * focalLengthPixels) / worldDist;
 }
-
-
+// First calculate raw parallax
+// Calculate the angle
+// Get maximum comfortable parallax for your setup
+// For objects in front of screen (negative parallax), be more restrictive
+// Reference says negative parallax should be closer to zero
+// Clamp based on direction
+    // Negative parallax (object in front of screen)
+    // Positive parallax (object behind screen)
+// Also ensure it doesn't exceed half the screen width
+    
+// For your 1612x1023 resolution:
+// Half width = 806 pixels per eye
+// 8° occlusion at 90° FOV = ~72 pixels occluded
+// + 2° safety = ~18 pixels
+// Total ~90 pixels occluded on each side
+    
 // Validated parallax calculation
 float calculateParallaxPixelsValidated(float depth) {
-    // First calculate raw parallax
     float parallaxPixels = calculateParallaxPixels(depth, fovDegrees);
-    
-    // Calculate the angle
     float parallaxAngle = calculateParallaxAngle(parallaxPixels);
-    
-    // Get maximum comfortable parallax for your setup
     float maxParallaxPixels = getMaxComfortableParallaxPixels();
-    
-    // For objects in front of screen (negative parallax), be more restrictive
-    // Reference says negative parallax should be closer to zero
     float maxNegativeParallaxPixels = maxParallaxPixels * 0.5;
     
-    // Clamp based on direction
     if (parallaxPixels < 0.0) {
-        // Negative parallax (object in front of screen)
         parallaxPixels = max(parallaxPixels, -maxNegativeParallaxPixels);
     } else {
-        // Positive parallax (object behind screen)
         parallaxPixels = min(parallaxPixels, maxParallaxPixels);
     }
     
-    // Also ensure it doesn't exceed half the screen width
-    parallaxPixels = clamp(parallaxPixels, -HALF_WIDTH_PIXELS * 0.4, HALF_WIDTH_PIXELS * 0.4);
+    // Use actual half width from launch size
+    float halfWidthPixels = float(halfWidth);
+    parallaxPixels = clamp(parallaxPixels, -halfWidthPixels * 0.4, halfWidthPixels * 0.4);
     
     return parallaxPixels;
 }
@@ -653,7 +653,8 @@ float adaptiveBorderThickness(float depth, vec3 normal, vec2 pixelPos) {
 #define WARP_MODE_MULTIFREQ 4
 
 // Make this configurable via push constant
-int warpMode = WARP_MODE_MULTIFREQ; // Default to best mode
+//int warpMode = WARP_MODE_MULTIFREQ; // Default to best mode
+int warpMode = WARP_MODE_SIMPLE; // Default to simple for testing
 
 // Warping mode selector function
 float selectWarpStrength(int mode, float dist, float radius, float borderThickness,
@@ -690,8 +691,13 @@ bool reprojectPixel(
       // Get pixel position for fluid warping
       vec2 pixelPos = vec2(gl_LaunchIDEXT.xy);
       float time = float(pc.frame) * 0.01; // Animate over time
-      traceAlbedo(pixelPos);
-      vec3 normal = gUnpackedNormal;
+      vec3 normal  = vec3(0.0, 0.0, 1.0);
+
+      // Only trace albedo for warp modes that actually need normals
+      if (warpMode == WARP_MODE_ADAPTIVE || warpMode == WARP_MODE_MULTIFREQ) {
+          traceAlbedo(pixelPos);
+          normal = gUnpackedNormal;
+      }
       
       float warpStrengthVal = selectWarpStrength(warpMode, dist, radius, borderThickness,
                                                   depth, pixelPos, normal, time);
@@ -842,40 +848,28 @@ void blendRaytracedAndReprojected(float blendFactor, ivec2 otherViewCoord, float
     // Visualize blend factor
     imageStore(gDisparity, ivec2(gl_LaunchIDEXT.xy), vec4(blendFactor, 1.0 - blendFactor, 0.0, 1.0));
 }
+
 bool isInDisparityZone(int pixelX, float depth, bool isLeftView) {
-    // Calculate occluded region based on 8° occlusion angle
-    const float OCCLUSION_ANGLE_DEG = 8.0; // Nose + cheek occlusion
+    const float OCCLUSION_ANGLE_DEG = 8.0;
+    float halfWidthPixels = float(halfWidth);
     float occlusionFraction = OCCLUSION_ANGLE_DEG / fovDegrees;
     
-    // Calculate absolute minimum occluded pixels
-    float occludedPixels = occlusionFraction * HALF_WIDTH_PIXELS;
-    
-    // Ensure minimum of 10 pixels at your resolution
+    float occludedPixels = occlusionFraction * halfWidthPixels;
     occludedPixels = max(occludedPixels, 10.0);
     
-    // Add safety margin (2° as mentioned in your comment)
     float safetyFraction = 1.0 / fovDegrees;
-    float safetyPixels = safetyFraction * HALF_WIDTH_PIXELS;
+    float safetyPixels = safetyFraction * halfWidthPixels;
     
     float totalOccludedPixels = occludedPixels + safetyPixels;
     
-    // For your 1612x1023 resolution:
-    // Half width = 806 pixels per eye
-    // 8° occlusion at 90° FOV = ~72 pixels occluded
-    // + 2° safety = ~18 pixels
-    // Total ~90 pixels occluded on each side
-    
     if (isLeftView) {
-        // Left eye: leftmost 90 pixels are occluded from right eye
         return pixelX < int(totalOccludedPixels);
     } else {
-        // Right eye: convert to view-relative coordinates
-        int viewRelativeX = pixelX - int(HALF_WIDTH_PIXELS);
-        int rightmostStart = int(HALF_WIDTH_PIXELS) - int(totalOccludedPixels);
+        int viewRelativeX = pixelX - int(halfWidthPixels);
+        int rightmostStart = int(halfWidthPixels) - int(totalOccludedPixels);
         return viewRelativeX >= rightmostStart;
     }
 }
-
 
 // Add this confidence calculation function
 float calculateReprojectionConfidence(ivec2 coord, float depth, float parallax) {
@@ -937,6 +931,7 @@ void main()
   vec4 prevDisparity = imageLoad(gDisparity, ivec2(gl_LaunchIDEXT.xy));
   bool wasReprojected = (prevDisparity.r > 0.5 && prevDisparity.g < 0.5); // Red = reprojected
   eyeSeparation = pc.eyeSeparation;
+  fovDegrees = pc.fovDegrees;
   maxParallaxWarp = getMaxComfortableParallaxPixels();
 
   /* --- Set rendering order based on the dominant eye. ---
@@ -958,14 +953,14 @@ void main()
       return; // Skip the left view in the second pass
     }
     nonDomEyeCenter = vec2(float(halfWidth) * 1.5, float(gl_LaunchSizeEXT.y) / 2.0);
-    dominantViewInv = inverse(frameInfo.view);  
-    dominantProjInv = inverse(frameInfo.proj); 
-    nonDomViewInv = inverse(frameInfo.view2); 
-    nonDomProjInv = inverse(frameInfo.proj2); 
-    dominantView = frameInfo.view;
-    dominantProj = frameInfo.proj;
-    nonDomView = frameInfo.view2;
-    nonDomProj = frameInfo.proj2;
+    dominantViewInv = frameInfo.viewInv;
+    dominantProjInv = frameInfo.projInv;
+    nonDomViewInv   = frameInfo.view2Inv;
+    nonDomProjInv   = frameInfo.proj2Inv;
+    dominantView    = frameInfo.view;
+    dominantProj    = frameInfo.proj;
+    nonDomView      = frameInfo.view2;
+    nonDomProj      = frameInfo.proj2;
   }
   else if (dominantEye == rightEye)
   {
@@ -976,14 +971,14 @@ void main()
       return; // Skip the right view in the second pass
     }
     nonDomEyeCenter = vec2(float(halfWidth) / 2.0, gl_LaunchSizeEXT.y / 2.0);
-    dominantViewInv = inverse(frameInfo.view2);
-    dominantProjInv = inverse(frameInfo.proj2); 
-    nonDomViewInv = inverse(frameInfo.view); 
-    nonDomProjInv = inverse(frameInfo.proj); 
-    dominantView = frameInfo.view2;
-    dominantProj = frameInfo.proj2;
-    nonDomView = frameInfo.view;
-    nonDomProj = frameInfo.proj;
+    dominantViewInv = frameInfo.view2Inv;
+    dominantProjInv = frameInfo.proj2Inv;
+    nonDomViewInv   = frameInfo.viewInv;
+    nonDomProjInv   = frameInfo.projInv;
+    dominantView    = frameInfo.view2;
+    dominantProj    = frameInfo.proj2;
+    nonDomView      = frameInfo.view;
+    nonDomProj      = frameInfo.proj;
   }
 
   /* --- Adjust the pixel position for left and right views ---
@@ -1038,7 +1033,7 @@ void main()
   }
 
   /* Debug */
-  bool doDebug = true;
+  bool doDebug = false;
   if (doDebug) {
     // if (pc.debugMode > 0) {
     if (pc.passId == 1) {

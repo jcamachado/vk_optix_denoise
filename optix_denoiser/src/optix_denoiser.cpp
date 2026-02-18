@@ -1708,14 +1708,14 @@ namespace nvvkhl
 		struct Settings
 		{
 			int maxFrames{ 200000 };
-			int maxSamples{ 4 };
-			int maxDepth{ 4 };
-			bool showAxis{ true };
+			int maxSamples{ 2 };
+			int maxDepth{ 2 };
+			bool showAxis{ false };
 			glm::vec4 clearColor{ 1.F };
 			float envRotation{ -130.F };
-			bool denoiseApply{ true };
-			bool denoiseFirstFrame{ true };
-			int denoiseEveryNFrames{ 1 };
+			bool denoiseApply{ false };
+			bool denoiseFirstFrame{ false };
+			int denoiseEveryNFrames{ 100 };
 		} m_settings;
 
 	public:
@@ -1803,16 +1803,17 @@ namespace nvvkhl
 
 		void onResize(uint32_t width, uint32_t height) override
 		{
-			if (m_enableXR && g_openXRState.swapchainWidth > 0) {
-				width = g_openXRState.swapchainWidth;
-				height = g_openXRState.swapchainHeight;
-			}
+			// In XR mode, onRenderVR manages GBuffer size (double-wide).
+			// Don't let the window system override it.
+			if (m_enableXR)
+				return;
+
 			// Skip if size hasn't actually changed
 			if (m_gBuffers && m_gBuffers->getSize().width == width && m_gBuffers->getSize().height == height)
 			{
 				return;
 			}
-			std::cout << "Resizing for " << (m_enableXR ? "XR" : "desktop") << ": " << width << "x" << height << std::endl;
+			std::cout << "Resizing for desktop: " << width << "x" << height << std::endl;
 			createGbuffers({ width, height });
 
 			m_tonemapper->updateComputeDescriptorSets(
@@ -1826,6 +1827,9 @@ namespace nvvkhl
 
 		void onUIMenu() override
 		{
+			if (m_enableXR)
+				return;
+
 			bool load_file{ false };
 
 			windowTitle();
@@ -1872,6 +1876,11 @@ namespace nvvkhl
 
 		void onUIRender() override
 		{
+			if (m_enableXR)
+			{
+				// In XR mode, the UI is rendered in-world, so skip the desktop UI.
+				return;
+			}
 			using namespace ImGuiH;
 
 			bool reset{ false };
@@ -2050,12 +2059,19 @@ namespace nvvkhl
 				return;
 
 			// Ensure GBuffers match XR swapchain size
-			// uint32_t requiredWidth = g_openXRState.swapchainWidth * 2;
-			// uint32_t requiredHeight = g_openXRState.swapchainHeight;
-			if (m_gBuffers->getSize().width != g_openXRState.swapchainWidth ||
-				m_gBuffers->getSize().height != g_openXRState.swapchainHeight) {
+			// Left half = left eye, Right half = right eye
+			uint32_t requiredWidth = g_openXRState.swapchainWidth * 2;
+			uint32_t requiredHeight = g_openXRState.swapchainHeight;
+			if (m_gBuffers->getSize().width != requiredWidth ||
+				m_gBuffers->getSize().height != requiredHeight) {
 				vkEndCommandBuffer(vkCmd);
-				onResize(g_openXRState.swapchainWidth, g_openXRState.swapchainHeight);
+				createGbuffers({ requiredWidth, requiredHeight });
+
+				m_tonemapper->updateComputeDescriptorSets(
+					m_gBuffers->getDescriptorImageInfo(showDenoisedImage() ? eGbufDenoised : eGBufResult),
+					m_gBuffers->getDescriptorImageInfo(eGBufLdr));
+				writeRtxSet();
+
 				// Submit an empty frame to OpenXR
 				XrFrameWaitInfo waitInfoResize{ XR_TYPE_FRAME_WAIT_INFO };
 				XrFrameState stateResize{ XR_TYPE_FRAME_STATE };
@@ -2139,7 +2155,9 @@ namespace nvvkhl
 				leftProjMat[1][1] *= -1;
 
 				m_frameInfo.view = leftViewMat;
+				m_frameInfo.viewInv = glm::inverse(leftViewMat);
 				m_frameInfo.proj = leftProjMat;
+				m_frameInfo.projInv = glm::inverse(leftProjMat);
 				m_frameInfo.envRotation = m_settings.envRotation;
 				m_frameInfo.clearColor = m_settings.clearColor;
 				m_frameInfo.camPos = glm::vec4(glm::vec3(leftEyeWorld[3]), 0.0f);
@@ -2152,7 +2170,9 @@ namespace nvvkhl
 				rightProjMat[1][1] *= -1;
 
 				m_frameInfo.view2 = rightViewMat;
+				m_frameInfo.view2Inv = glm::inverse(rightViewMat);
 				m_frameInfo.proj2 = rightProjMat;
+				m_frameInfo.proj2Inv = glm::inverse(rightProjMat);
 				m_frameInfo.camPos2 = glm::vec4(glm::vec3(rightEyeWorld[3]), 0.0f);
 				
 				// Compute real IPD from XR eye poses (distance between left and right eye positions)
@@ -2200,6 +2220,11 @@ namespace nvvkhl
 
 			// 5) Render offscreen — use full GPU power
 			vkCmdUpdateBuffer(vkCmd, m_bFrameInfo.buffer, 0, sizeof(FrameInfo), &m_frameInfo);
+
+			float tanLeft = tanf(views[0].fov.angleLeft);   // negative
+			float tanRight = tanf(views[0].fov.angleRight);  // positive
+			float horizontalFovRad = atanf(tanRight) - atanf(tanLeft); // total horizontal span
+			m_pushConst.fovDegrees = glm::degrees(horizontalFovRad);
 
 			m_pushConst.maxDepth = m_settings.maxDepth;
 			m_pushConst.maxSamples = m_settings.maxSamples;
@@ -2429,47 +2454,56 @@ namespace nvvkhl
 
 			auto scope_dbg = m_dutil->DBG_SCOPE(cmd);
 
-			std::cout << "Screen resolution: " << m_viewSize.x << "x" << m_viewSize.y << std::endl;
-
 			// Get camera info
-			float view_aspect_ratio = (m_viewSize.x * 0.5) / m_viewSize.y;
-			float eyeOffset = 2.04f; // Adjust this value as needed
+			float view_aspect_ratio = (m_viewSize.x * 0.5f) / m_viewSize.y;
+			float eyeOffset = 0.032f; // Half IPD in meters (~64mm total)
 
-			glm::vec3 eyeMid, eyeLeft, eyeRight;
+			glm::vec3 eyeMid = CameraManip.getEye();
 			glm::vec3 center = CameraManip.getCenter();
 			glm::vec3 up = CameraManip.getUp();
 
-			glm::vec2 clip;
 			CameraManip.setFov(90);
-			eyeMid = CameraManip.getEye();
-			eyeLeft = eyeMid - glm::vec3(eyeOffset, 0.0f, 0.0f);
-			CameraManip.setLookat(eyeLeft, center, up);
-			clip = CameraManip.getClipPlanes();
-			m_frameInfo.view = CameraManip.getMatrix();
+
+			// Compute camera's local right vector (parallel to ground plane)
+			glm::vec3 forward = glm::normalize(center - eyeMid);
+			glm::vec3 right = glm::normalize(glm::cross(forward, up));
+
+			// Parallel stereo: offset both eye AND center by the same amount
+			// This keeps both cameras looking in the same direction (no toe-in)
+			glm::vec3 eyeLeft = eyeMid - right * eyeOffset;
+			glm::vec3 centerLeft = center - right * eyeOffset;
+
+			glm::vec3 eyeRight = eyeMid + right * eyeOffset;
+			glm::vec3 centerRight = center + right * eyeOffset;
+
+			// Left eye
+			glm::vec2 clip = CameraManip.getClipPlanes();
+			m_frameInfo.view = glm::lookAt(eyeLeft, centerLeft, up);
+			m_frameInfo.viewInv = glm::inverse(m_frameInfo.view);
 			m_frameInfo.proj = glm::perspectiveRH_ZO(glm::radians(CameraManip.getFov()), view_aspect_ratio, clip.x, clip.y);
 			m_frameInfo.proj[1][1] *= -1;
+			m_frameInfo.projInv = glm::inverse(m_frameInfo.proj);
 			m_frameInfo.camPos = glm::vec4(eyeLeft, 0.0f);
 
-			eyeRight = eyeMid + glm::vec3(eyeOffset, 0.0f, 0.0f);
-			CameraManip.setLookat(eyeRight, center, up);
-			clip = CameraManip.getClipPlanes();
-			m_frameInfo.view2 = CameraManip.getMatrix();
+			// Right eye
+			m_frameInfo.view2 = glm::lookAt(eyeRight, centerRight, up);
+			m_frameInfo.view2Inv = glm::inverse(m_frameInfo.view2);
 			m_frameInfo.proj2 = glm::perspectiveRH_ZO(glm::radians(CameraManip.getFov()), view_aspect_ratio, clip.x, clip.y);
 			m_frameInfo.proj2[1][1] *= -1;
+			m_frameInfo.proj2Inv = glm::inverse(m_frameInfo.proj2);
+
 			m_frameInfo.camPos2 = glm::vec4(eyeRight, 0.0f);
 
 			m_frameInfo.envRotation = m_settings.envRotation;
 			m_frameInfo.clearColor = m_settings.clearColor;
 
-			CameraManip.setLookat(eyeMid, center, up);
-
 			vkCmdUpdateBuffer(cmd, m_bFrameInfo.buffer, 0, sizeof(FrameInfo), &m_frameInfo);
 
-			// Push constant
 			m_pushConst.maxDepth = m_settings.maxDepth;
 			m_pushConst.maxSamples = m_settings.maxSamples;
 			m_pushConst.frame = m_frame;
 			m_pushConst.middleRadius = m_middleRadius;
+			m_pushConst.fovDegrees = CameraManip.getFov(); // Desktop FOV
 
 			raytraceScene(cmd);
 
