@@ -234,7 +234,7 @@ void DenoiserOptix::denoiseImageBuffer(uint64_t& fenceValue, float blendFactor /
                                     m_denoiserSizes.withoutOverlapScratchSizeInBytes));
 
 
-    CUDA_CHECK(cudaDeviceSynchronize());  // Making sure the denoiser is done
+    //CUDA_CHECK(cudaDeviceSynchronize());  // Making sure the denoiser is done
     CUDA_CHECK(cudaStreamSynchronize(m_cuStream));
 
     cudaExternalSemaphoreSignalParams sig_params{};

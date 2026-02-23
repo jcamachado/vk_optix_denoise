@@ -20,6 +20,7 @@ struct PushConstant // total 32 bytes
   float middleRadius; // optional override for reprojection radius (0 = auto) 4 bytes 
   float eyeSeparation; // 4 bytes
   float fovDegrees; // per eye horizontal fov in degrees 4 bytes
+  int mode; // 0 = right dominant, 1 = left dominant (default) 4 bytes 
 };
 
 #define MAX_NB_LIGHTS 1
@@ -41,7 +42,17 @@ struct PushConstant // total 32 bytes
 //	float _pad1;        // 4 bytes  (offset 316)
 //};
 
-struct FrameInfo
+struct AreaLight // Total size 112 bytes
+{
+	vec3 position;   // Center of the rectangle
+	vec3 u;          // Vector along one side (width)
+	vec3 v;          // Vector along the other side (height)
+	vec3 emission;   // RGB intensity (W/m^2)
+	float area;      // Precomputed area
+};
+
+
+struct FrameInfo // Total size 688 byte, 16*43
 {
 	mat4 proj;          // 64 bytes (offset 0)
 	mat4 proj2;         // 64 bytes (offset 64)
@@ -56,8 +67,12 @@ struct FrameInfo
 	vec4 camPos2;       // 16 bytes (offset 544)
 	float envRotation;  // 4 bytes  (offset 560)
 	float maxLuminance; // 4 bytes  (offset 564)
-	float _pad0;        // 4 bytes  (offset 568)
+	float _pad0;        // 4 bytes  (offset 568) - pad to 16-byte alignment
 	float _pad1;        // 4 bytes  (offset 572)
+	//AreaLight areaLight;	   // 112 bytes (offset 568) = > total 680 bytes divided by 16
+	//float _pad0;        // 4 bytes  (offset 680) - pad to 16-byte alignment
+	//float _pad1;        // 4 bytes  (offset 684)
 };
+
 
 #endif // HOST_DEVICE_H

@@ -259,8 +259,6 @@ void setupDebugMessenger()
 	}
 }
 
-
-
 void createOpenXRSwapchain()
 {
 	// Try to get recommended resolution from OpenXR
@@ -275,16 +273,22 @@ void createOpenXRSwapchain()
 	uint32_t width = 0;
 	uint32_t height = 0;
 
+	// Meta Quest resolution  1832x1920 per eye, but steamvr uses higher values
 	if (viewCount >= 2)
 	{
 		width = views[0].recommendedImageRectWidth;
 		height = views[0].recommendedImageRectHeight;
 		std::cout << "OpenXR recommended resolution: " << width << "x" << height << std::endl;
+
+		// Force native Meta Quest 3 resolution (per eye)
+		width = 1832;
+		height = 1920;
+		std::cout << "Forcing Meta Quest 3 native resolution: " << width << "x" << height << std::endl;
 	}
 	else
 	{
-		width = 2016;
-		height = 2240;
+		width = 1832; //resolution from vr specs per eye
+		height = 1920;
 		std::cout << "Using fallback resolution: " << width << "x" << height << std::endl;
 	}
 
@@ -1712,17 +1716,18 @@ namespace nvvkhl
 			int maxDepth{ 2 };
 			bool showAxis{ false };
 			glm::vec4 clearColor{ 1.F };
-			float envRotation{ -130.F };
-			bool denoiseApply{ false };
-			bool denoiseFirstFrame{ false };
-			int denoiseEveryNFrames{ 100 };
+			float envRotation{ -128.5F };
+			bool denoiseApply{ true };
+			bool denoiseFirstFrame{ true };
+			int denoiseEveryNFrames{ 10 };
+			int mode{ 0 }; // 0 = right dominant, 1 = left dominant
 		} m_settings;
 
 	public:
 		OptixDenoiserEngine()
 		{
-			//m_frameInfo.maxLuminance = 10.0F;
-			m_frameInfo.maxLuminance = 500.0F;
+			m_frameInfo.maxLuminance = 10.0F;
+			//m_frameInfo.maxLuminance = 500.0F;
 			m_frameInfo.clearColor = glm::vec4(1.F);
 		};
 
@@ -1876,11 +1881,11 @@ namespace nvvkhl
 
 		void onUIRender() override
 		{
-			if (m_enableXR)
-			{
-				// In XR mode, the UI is rendered in-world, so skip the desktop UI.
-				return;
-			}
+			//if (m_enableXR)
+			//{
+			//	// In XR mode, the UI is rendered in-world, so skip the desktop UI.
+			//	return;
+			//}
 			using namespace ImGuiH;
 
 			bool reset{ false };
@@ -1935,7 +1940,9 @@ namespace nvvkhl
 
 						reset |= PropertyEditor::entry(
 							"Rotation", [&]
-							{ return ImGui::SliderAngle("Rotation", &m_settings.envRotation); }, "Rotating the environment");
+							//{ return ImGui::SliderAngle("Rotation", &m_settings.envRotation); }, "Rotating the environment");
+						{ return ImGui::SliderFloat("Rotation", &m_settings.envRotation, -128.0f, -128.5f); }, "Rotating the environment");
+
 						PropertyEditor::treePop();
 					}
 					PropertyEditor::end();
@@ -1954,6 +1961,8 @@ namespace nvvkhl
 					ImGui::SliderInt("N-frames", &m_settings.denoiseEveryNFrames, 1, 500);
 					ImGui::SliderFloat("Blend", &m_blendFactor, 0.f, 1.0f);
 					ImGui::SliderFloat("Middle Radius", &m_middleRadius, 0.1f, 1.0f);
+					ImGui::SliderInt("Enable Paralax Reprojection", &m_settings.mode, -1, 2);
+
 					int denoised_frame = -1;
 					if (m_settings.denoiseApply)
 					{
@@ -1966,7 +1975,7 @@ namespace nvvkhl
 					}
 					ImGui::Text("Denoised Frame: %d", denoised_frame);
 
-					ImVec2 tumbnailSize = { 150 * m_gBuffers->getAspectRatio(), 150 };
+					/*ImVec2 tumbnailSize = { 150 * m_gBuffers->getAspectRatio(), 150 };
 					ImGui::Text("Albedo");
 					ImGui::Image(m_gBuffers->getDescriptorSet(eGBufAlbedo), tumbnailSize);
 					ImGui::Text("Normal");
@@ -1978,7 +1987,7 @@ namespace nvvkhl
 					ImGui::Text("Result");
 					ImGui::Image(m_gBuffers->getDescriptorSet(eGBufResult), tumbnailSize);
 					ImGui::Text("Denoised");
-					ImGui::Image(m_gBuffers->getDescriptorSet(eGbufDenoised), tumbnailSize);
+					ImGui::Image(m_gBuffers->getDescriptorSet(eGbufDenoised), tumbnailSize);*/
 				}
 
 				ImGui::End();
@@ -1991,6 +2000,7 @@ namespace nvvkhl
 
 			m_tonemapper->updateComputeDescriptorSets(m_gBuffers->getDescriptorImageInfo(showDenoisedImage() ? eGbufDenoised : eGBufResult),
 				m_gBuffers->getDescriptorImageInfo(eGBufLdr));
+
 
 			{ // Rendering Viewport
 				ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0F, 0.0F));
@@ -2060,7 +2070,7 @@ namespace nvvkhl
 
 			// Ensure GBuffers match XR swapchain size
 			// Left half = left eye, Right half = right eye
-			uint32_t requiredWidth = g_openXRState.swapchainWidth * 2;
+			uint32_t requiredWidth = g_openXRState.swapchainWidth;
 			uint32_t requiredHeight = g_openXRState.swapchainHeight;
 			if (m_gBuffers->getSize().width != requiredWidth ||
 				m_gBuffers->getSize().height != requiredHeight) {
@@ -2134,7 +2144,6 @@ namespace nvvkhl
 			}
 
 			// Fill per-eye FrameInfo: use CameraManip as the scene base,
-			// apply OpenXR head tracking as relative offset
 			{
 				const float nearZ = 0.1f;
 				const float farZ = 1000.0f;
@@ -2153,6 +2162,14 @@ namespace nvvkhl
 				glm::mat4 leftViewMat = glm::inverse(leftEyeWorld);
 				glm::mat4 leftProjMat = xrFovToProjMatrix(views[0].fov, nearZ, farZ);
 				leftProjMat[1][1] *= -1;
+
+				// Place this where you fill m_frameInfo before uploading to GPU
+				//m_frameInfo.areaLight.position = glm::vec3(glm::vec3(0.0f, 3.0f, 0.0f)); // Use left eye camera position
+
+				//m_frameInfo.areaLight.u = glm::vec3(2.0f, 0.0f, 0.0f);        // 2m wide (X)
+				//m_frameInfo.areaLight.v = glm::vec3(0.0f, 0.0f, 2.0f);        // 2m deep (Z)
+				//m_frameInfo.areaLight.emission = glm::vec3(3000.0f, 300.0f, 300.0f); // Bright white
+				//m_frameInfo.areaLight.area = glm::length(glm::cross(m_frameInfo.areaLight.u, m_frameInfo.areaLight.v));
 
 				m_frameInfo.view = leftViewMat;
 				m_frameInfo.viewInv = glm::inverse(leftViewMat);
@@ -2231,6 +2248,7 @@ namespace nvvkhl
 			m_pushConst.frame = m_frame;
 			m_pushConst.middleRadius = m_middleRadius;
 			m_pushConst.eyeSeparation = m_xrEyeSeparation;
+			m_pushConst.mode = m_settings.mode;
 
 			raytraceScene(vkCmd);
 
@@ -2374,9 +2392,16 @@ namespace nvvkhl
 			vkEndCommandBuffer(vkCmd);
 
 			// Submit GPU work and wait
-			VkFence fence = VK_NULL_HANDLE;
-			VkFenceCreateInfo fci{ VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
-			vkCreateFence(m_device, &fci, nullptr, &fence);
+			
+			if (m_vrFence == VK_NULL_HANDLE)
+			{
+				VkFenceCreateInfo fci{ VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
+				vkCreateFence(m_device, &fci, nullptr, &m_vrFence);
+			}
+			else
+			{
+				vkResetFences(m_device, 1, &m_vrFence);
+			}
 
 			VkCommandBufferSubmitInfo cmdInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO };
 			cmdInfo.commandBuffer = vkCmd;
@@ -2384,9 +2409,8 @@ namespace nvvkhl
 			submit2.commandBufferInfoCount = 1;
 			submit2.pCommandBufferInfos = &cmdInfo;
 
-			vkQueueSubmit2(m_app->getQueue(0).queue, 1, &submit2, fence);
-			vkWaitForFences(m_device, 1, &fence, VK_TRUE, UINT64_MAX);
-			vkDestroyFence(m_device, fence, nullptr);
+			vkQueueSubmit2(m_app->getQueue(0).queue, 1, &submit2, m_vrFence);
+			vkWaitForFences(m_device, 1, &m_vrFence, VK_TRUE, UINT64_MAX);
 
 			// Release swapchain AFTER GPU finishes
 			{
@@ -2504,6 +2528,7 @@ namespace nvvkhl
 			m_pushConst.frame = m_frame;
 			m_pushConst.middleRadius = m_middleRadius;
 			m_pushConst.fovDegrees = CameraManip.getFov(); // Desktop FOV
+			m_pushConst.mode = m_settings.mode;
 
 			raytraceScene(cmd);
 
@@ -2619,19 +2644,23 @@ namespace nvvkhl
 			VkExtent2D vk_size{ static_cast<uint32_t>(m_viewSize.x), static_cast<uint32_t>(m_viewSize.y) };
 
 			// Four GBuffers: RGBA8 and 4x RGBA32F(final,albedo,normal, denoised), rendering to RGBA32F and tone mapped to RGBA8
+			//std::vector<VkFormat> color_buffers = {
+			//	VK_FORMAT_B8G8R8A8_UNORM,      // LDR
+			//	VK_FORMAT_R32G32B32A32_SFLOAT, // Result
+			//	VK_FORMAT_R16G16B16A16_SFLOAT,  // Albedo
+			//	VK_FORMAT_R16G16B16A16_SFLOAT,  // Normal
+			//	VK_FORMAT_R16G16B16A16_SFLOAT,  // Depth
+			//	VK_FORMAT_R16G16B16A16_SFLOAT,  // Disparity
+			//	VK_FORMAT_R16G16B16A16_SFLOAT,  // Denoised
+			//};
 			std::vector<VkFormat> color_buffers = {
-				VK_FORMAT_B8G8R8A8_UNORM,      // LDR
-				VK_FORMAT_R32G32B32A32_SFLOAT, // Result
+				VK_FORMAT_B8G8R8A8_UNORM,       // LDR
+				VK_FORMAT_R32G32B32A32_SFLOAT,  // Result (denoiser needs FLOAT4)
 				VK_FORMAT_R16G16B16A16_SFLOAT,  // Albedo
 				VK_FORMAT_R16G16B16A16_SFLOAT,  // Normal
-				VK_FORMAT_R16G16B16A16_SFLOAT,  // Depth
-				VK_FORMAT_R16G16B16A16_SFLOAT,  // Disparity
+				VK_FORMAT_R16_SFLOAT,           // Depth — single channel is sufficient
+				VK_FORMAT_R8G8B8A8_UNORM,       // Disparity — debug visualization only
 				VK_FORMAT_R16G16B16A16_SFLOAT,  // Denoised
-				//VK_FORMAT_R32G32B32A32_SFLOAT, // Albedo
-				//VK_FORMAT_R32G32B32A32_SFLOAT, // Normal
-				//VK_FORMAT_R32G32B32A32_SFLOAT, // Depth
-				//VK_FORMAT_R32G32B32A32_SFLOAT, // Disparity
-				//VK_FORMAT_R32G32B32A32_SFLOAT, // Denoised
 			};
 
 			// Creation of the GBuffers
@@ -3094,9 +3123,9 @@ namespace nvvkhl
 			nvvk::Texture result{ m_gBuffers->getColorImage(eGBufResult), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufResult) };
 			nvvk::Texture albedo{ m_gBuffers->getColorImage(eGBufAlbedo), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufAlbedo) };
 			nvvk::Texture normal{ m_gBuffers->getColorImage(eGBufNormal), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufNormal) };
-			nvvk::Texture depth{ m_gBuffers->getColorImage(eGBufDepth), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufDepth) };
-			nvvk::Texture disparity{ m_gBuffers->getColorImage(eGBufDisparity), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufDisparity) };
-			m_denoiser->imageToBuffer(cmd, { result, albedo, normal, depth, disparity });
+			//nvvk::Texture depth{ m_gBuffers->getColorImage(eGBufDepth), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufDepth) };
+			//nvvk::Texture disparity{ m_gBuffers->getColorImage(eGBufDisparity), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufDisparity) };
+			m_denoiser->imageToBuffer(cmd, { result, albedo, normal });
 #endif // NVP_SUPPORTS_OPTIX7
 		}
 
@@ -3157,6 +3186,11 @@ namespace nvvkhl
 		{
 			m_alloc->destroy(m_bFrameInfo);
 
+			if (m_vrFence != VK_NULL_HANDLE)
+			{
+				vkDestroyFence(m_device, m_vrFence, nullptr);
+				m_vrFence = VK_NULL_HANDLE;
+			}
 			for (auto& f : m_commandFrames)
 			{
 				vkFreeCommandBuffers(m_device, f.cmdPool, 2, f.cmdBuffer);
@@ -3199,6 +3233,7 @@ namespace nvvkhl
 		PipelineContainer m_rtxPipe;
 		int m_frame{ -1 };
 		FrameInfo m_frameInfo;
+		VkFence m_vrFence = VK_NULL_HANDLE;
 
 		std::unique_ptr<nvh::gltf::Scene> m_scene;
 		std::unique_ptr<SceneVk> m_sceneVk;
@@ -3392,6 +3427,8 @@ auto main(int argc, char** argv) -> int
 	//std::string scn_file = nvh::findFile(R"(media/cornellBox.gltf)", default_search_paths, true);
 	std::string scn_file = nvh::findFile(R"(media/sponza/glTF/Sponza.gltf)", default_search_paths, true);
 	optixDenoiser->onFileDrop(scn_file.c_str());
+	//scn_file = nvh::findFile(R"(media/cube.gltf)", default_search_paths, true);
+	//optixDenoiser->onFileDrop(scn_file.c_str());
 
 	CameraManip.setLookat(
 		glm::vec3(0.0f, 1.6f, 0.0f),   // eye:    center of atrium, standing eye height
