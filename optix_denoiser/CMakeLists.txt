@@ -24,14 +24,16 @@ else()
 endif()
 
 
-
-_add_package_Optix7()
+#_add_package_Optix7()
+#_add_package_Optix8()
+_add_package_Optix9()
 message(STATUS "OptiX_INSTALL_DIR: ${OptiX_INSTALL_DIR}")
 message(STATUS "OPTIX_INCLUDE_DIR: ${OPTIX_INCLUDE_DIR}")
 message(STATUS "OPTIX_LIBRARY: ${OPTIX_LIBRARY}")
 _add_package_VulkanSDK()
 _add_package_ImGUI()
 _add_nvpro_core_lib()
+
 
 
 # get_cmake_property(_variableNames VARIABLES)
@@ -51,7 +53,8 @@ _add_project_definitions(${PROJECT_NAME})
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 20)
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
 
-target_include_directories(${PROJECT_NAME} PRIVATE ${SAMPLES_COMMON_DIR} ${ADVANCE_DIR})
+# target_include_directories(${PROJECT_NAME} PRIVATE ${SAMPLES_COMMON_DIR} ${ADVANCE_DIR})
+target_include_directories(${PROJECT_NAME} PRIVATE ${SAMPLES_COMMON_DIR} ${ADVANCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_definitions(${PROJECT_NAME} PRIVATE IMGUI_DEFINE_MATH_OPERATORS)
 source_group("Other"  FILES ${COMMON_SOURCE_FILES} ${PACKAGE_SOURCE_FILES})
 

@@ -1719,8 +1719,8 @@ namespace nvvkhl
 			float envRotation{ -128.5F };
 			bool denoiseApply{ true };
 			bool denoiseFirstFrame{ true };
-			int denoiseEveryNFrames{ 10 };
-			int mode{ 0 }; // 0 = right dominant, 1 = left dominant
+			int denoiseEveryNFrames{ 1 };
+			int mode{ 0 }; // 0 = right dominant, 1 = left dominant, -1 = no reprojection
 		} m_settings;
 
 	public:
@@ -1761,20 +1761,28 @@ namespace nvvkhl
 			g_elemBenchmark->setCurrentFrame([&]
 				{ return m_frame; });
 
-#ifdef NVP_SUPPORTS_OPTIX7
+//#ifdef NVP_SUPPORTS_OPTIX7
+#if defined(NVP_SUPPORTS_OPTIX9) || defined(NVP_SUPPORTS_OPTIX7)
 			m_denoiser = std::make_unique<DenoiserOptix>();
 			m_denoiser->setup(m_device, m_physicalDevice, m_app->getQueue(0).familyIndex);
 
 			OptixDenoiserOptions d_options;
 			d_options.guideAlbedo = 1u;
 			d_options.guideNormal = 1u;
-			m_denoiser->initOptiX(d_options, OPTIX_PIXEL_FORMAT_FLOAT4, true);
+			/*m_denoiser->initOptiX(d_options, OPTIX_PIXEL_FORMAT_FLOAT4, true);
 			m_denoiser->createSemaphore();
-			m_denoiser->createCopyPipeline();
+			m_denoiser->createCopyPipeline();*/
+			if (!m_denoiser->initOptiX(d_options, OPTIX_PIXEL_FORMAT_FLOAT4, true)) {
+				std::cerr << "OptiX denoiser failed to initialize — disabling denoiser." << std::endl;
+				m_settings.denoiseApply = false;
+			} else {
+				m_denoiser->createSemaphore();
+				m_denoiser->createCopyPipeline();
+				}
 #else
 			m_settings.denoiseApply = false;
 			LOGE("OptiX is not supported");
-#endif // NVP_SUPPORTS_OPTIX7
+#endif // NVP_SUPPORTS_OPTIX7 || NVP_SUPPORTS_OPTIX9 
 
 			m_hdrEnv->loadEnvironment("");
 
@@ -2253,7 +2261,7 @@ namespace nvvkhl
 			raytraceScene(vkCmd);
 
 
-#ifdef NVP_SUPPORTS_OPTIX7
+#if defined(NVP_SUPPORTS_OPTIX9) || defined(NVP_SUPPORTS_OPTIX7)
 			// Denoise in VR — must sync Vulkan→CUDA→Vulkan inline
 			if (m_settings.denoiseApply)
 			{
@@ -2532,7 +2540,7 @@ namespace nvvkhl
 
 			raytraceScene(cmd);
 
-#ifdef NVP_SUPPORTS_OPTIX7
+#if defined(NVP_SUPPORTS_OPTIX9) || defined(NVP_SUPPORTS_OPTIX7)
 			// #OPTIX_D
 			if (needToDenoise())
 			{
@@ -2584,7 +2592,7 @@ namespace nvvkhl
 				vkBeginCommandBuffer(cmd, &begin_info);
 				copyCudaImagesToVulkan(cmd);
 			}
-#endif
+#endif // OPTIX7 and OPTIX9
 
 			// Apply tonemapper - take GBuffer-X and output to GBuffer-0
 			m_tonemapper->runCompute(cmd, m_gBuffers->getSize());
@@ -2666,7 +2674,7 @@ namespace nvvkhl
 			// Creation of the GBuffers
 			m_gBuffers = std::make_unique<nvvkhl::GBuffer>(m_device, m_alloc.get(), vk_size, color_buffers, depth_format);
 
-#ifdef NVP_SUPPORTS_OPTIX7
+#if defined(NVP_SUPPORTS_OPTIX9) || defined(NVP_SUPPORTS_OPTIX7)
 			// Only allocate denoiser buffers when denoising is actually enabled
 			//if (m_settings.denoiseApply && !m_enableXR)
 			if (m_settings.denoiseApply)
@@ -3119,7 +3127,7 @@ namespace nvvkhl
 		// Will copy the Vulkan images to Cuda buffers
 		void copyImagesToCuda(VkCommandBuffer cmd)
 		{
-#ifdef NVP_SUPPORTS_OPTIX7
+#if defined(NVP_SUPPORTS_OPTIX9) || defined(NVP_SUPPORTS_OPTIX7)
 			nvvk::Texture result{ m_gBuffers->getColorImage(eGBufResult), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufResult) };
 			nvvk::Texture albedo{ m_gBuffers->getColorImage(eGBufAlbedo), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufAlbedo) };
 			nvvk::Texture normal{ m_gBuffers->getColorImage(eGBufNormal), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufNormal) };
@@ -3133,7 +3141,7 @@ namespace nvvkhl
 		// Copy the denoised buffer to Vulkan image
 		void copyCudaImagesToVulkan(VkCommandBuffer cmd)
 		{
-#ifdef NVP_SUPPORTS_OPTIX7
+#if defined(NVP_SUPPORTS_OPTIX9) || defined(NVP_SUPPORTS_OPTIX7)
 			nvvk::Texture denoised{ m_gBuffers->getColorImage(eGbufDenoised), nullptr, m_gBuffers->getDescriptorImageInfo(eGbufDenoised) };
 			m_denoiser->bufferToImage(cmd, &denoised);
 #endif // NVP_SUPPORTS_OPTIX7
@@ -3143,7 +3151,7 @@ namespace nvvkhl
 		// Invoke the Optix denoiser
 		void denoiseImage()
 		{
-#ifdef NVP_SUPPORTS_OPTIX7
+#if defined(NVP_SUPPORTS_OPTIX9) || defined(NVP_SUPPORTS_OPTIX7)
 			m_denoiser->denoiseImageBuffer(m_fenceValue, m_blendFactor);
 #endif // NVP_SUPPORTS_OPTIX7
 		}
@@ -3204,9 +3212,9 @@ namespace nvvkhl
 			m_sceneSet->deinit();
 			m_sbt->destroy();
 			m_picker->destroy();
-#ifdef NVP_SUPPORTS_OPTIX7
+#if defined(NVP_SUPPORTS_OPTIX9) || defined(NVP_SUPPORTS_OPTIX7)
 			m_denoiser->destroy();
-#endif
+#endif // NVP_SUPPORTS_OPTIX7 || NVP_SUPPORTS_OPTIX9
 		}
 
 		//--------------------------------------------------------------------------------------------------
@@ -3248,10 +3256,10 @@ namespace nvvkhl
 		std::vector<uint32_t> m_blendMatNodes;
 		std::vector<uint32_t> m_allNodes;
 
-#ifdef NVP_SUPPORTS_OPTIX7
+#if defined(NVP_SUPPORTS_OPTIX9) || defined(NVP_SUPPORTS_OPTIX7)
 		std::unique_ptr<DenoiserOptix> m_denoiser;
 		uint64_t m_fenceValue{ 0U };
-#endif // NVP_SUPPORTS_OPTIX7
+#endif // NVP_SUPPORTS_OPTIX7 || NVP_SUPPORTS_OPTIX9
 		float m_blendFactor = 0.0f;
 		float m_middleRadius = 0.6f;
 		float m_xrEyeSeparation = 0.063f;

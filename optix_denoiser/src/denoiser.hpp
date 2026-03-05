@@ -20,7 +20,7 @@
 
 #pragma once
 
-#ifdef NVP_SUPPORTS_OPTIX7
+#if defined(NVP_SUPPORTS_OPTIX9) || defined(NVP_SUPPORTS_OPTIX7)
 
 
 #include <array>
@@ -48,6 +48,8 @@
 #include <optix_stubs.h>
 #include <optix_function_table.h>
 #include <driver_types.h>
+
+//#include "optix_compat.h"
 
 
 #define OPTIX_CHECK(call)                                                                                              \
@@ -175,7 +177,7 @@ private:
   OptixDenoiserOptions   m_denoiserOptions = {};
   OptixDenoiserSizes     m_denoiserSizes   = {};
   //OptixDenoiserAlphaMode m_denoiserAlpha   = {OPTIX_DENOISER_ALPHA_MODE_COPY};
-  OptixDenoiserAlphaMode m_denoiserAlpha = OPTIX_DENOISER_ALPHA_MODE_COPY;
+  //OptixDenoiserAlphaMode m_denoiserAlpha = OPTIX_DENOISER_ALPHA_MODE_COPY;
   OptixPixelFormat       m_pixelFormat     = {};
 
   CUdeviceptr m_dStateBuffer   = {};
@@ -221,4 +223,4 @@ private:
   std::array<VulkanPipelines, 2> m_pipelines{};
 };
 
-#endif  // !NVP_SUPPORTS_OPTIX7
+#endif  // !NVP_SUPPORTS_OPTIX7 && !NVP_SUPPORTS_OPTIX9
