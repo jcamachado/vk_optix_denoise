@@ -15,12 +15,12 @@ if(NOT CUDAToolkit_FOUND)
   endif()
 
 
-find_package(OpenXR REQUIRED)
-if(NOT OpenXR_FOUND)
-  message(WARNING "Project ${PROJECT_NAME} NOT built: OpenXR not found. Please provide OpenXR_ROOT to the CMake invocation.")
-  return()
+find_package(OpenXR QUIET)
+if(OpenXR_FOUND)
+    message(STATUS "OpenXR found - VR support enabled")
+    add_compile_definitions(USE_OPENXR)
 else()
-  message(STATUS "OpenXR found: ${OpenXR_DIR}")
+    message(WARNING "OpenXR not found - VR support disabled")
 endif()
 
 

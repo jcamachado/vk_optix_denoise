@@ -263,22 +263,14 @@ ShadingResult shading(in PbrMaterial pbrMat, in HitState hit)
   // (This preserves all existing logic; it just skips the shadow trace when frameInfo.envThroughWalls == 1.)
   if(nextEventValid)
   {
-    if (frameInfo.envThroughWalls > 0.5)
-    {
-      // Environment should penetrate geometry: add contribution without occlusion test
+    // Shadow ray - stop at the first intersection, don't invoke the closest hit shader (fails for transparent objects)
+    uint ray_flag = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT | gl_RayFlagsCullBackFacingTrianglesEXT;
+    payload.hitT = 0.0F;
+    traceRayEXT(topLevelAS, ray_flag, 0xFF, 0, 0, 0, result.rayOrigin, 0.001, dirToLight, INFINITE, 0);
+    // If hitting nothing, add light contribution
+    if(payload.hitT == INFINITE)
       result.radiance += contribution;
-    }
-    else
-    {
-      // Shadow ray - stop at the first intersection, don't invoke the closest hit shader (fails for transparent objects)
-      uint ray_flag = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT | gl_RayFlagsCullBackFacingTrianglesEXT;
-      payload.hitT = 0.0F;
-      traceRayEXT(topLevelAS, ray_flag, 0xFF, 0, 0, 0, result.rayOrigin, 0.001, dirToLight, INFINITE, 0);
-      // If hitting nothing, add light contribution
-      if(payload.hitT == INFINITE)
-        result.radiance += contribution;
-      payload.hitT = gl_HitTEXT;
-    }
+    payload.hitT = gl_HitTEXT;
   }
 
   return result;

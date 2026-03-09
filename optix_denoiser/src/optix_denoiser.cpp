@@ -454,15 +454,12 @@ static VkInstance xrCreateVkInstance(XrInstance xrInstance, XrSystemId systemId)
 void setDefaultFrameInfo(FrameInfo& frameInfo,
 	const glm::vec3& envRotation,
 	const glm::vec4& clearColor,
-	bool envThroughWalls,
 	const glm::vec3& pointLightPos,
 	bool pointLightEnabled,
 	const glm::vec3& pointLightColor)
 {
 	frameInfo.envRotation = envRotation;
 	frameInfo.clearColor = clearColor;
-	frameInfo.envThroughWalls = envThroughWalls ? 1.0f : 0.0f;
-
 	frameInfo.pointLightPos = glm::vec4(pointLightPos, 0.0f);
 	frameInfo.pointLightColorEnabled = glm::vec4(
 		pointLightEnabled ? pointLightColor : glm::vec3(0.0f),
@@ -1730,16 +1727,15 @@ namespace nvvkhl
 		{
 			int maxFrames{ 200000 };
 			int maxSamples{ 2 };
-			int maxDepth{ 2 };
+			int maxDepth{ 3 };
 			bool showAxis{ false };
 			glm::vec4 clearColor{ 1.F };
 			//float envRotation{ -128.5F };
 			glm::vec3 envRotation{ -4.F, 35.5F, 121.F };
 			bool denoiseApply{ true };
 			bool denoiseFirstFrame{ true };
-			int denoiseEveryNFrames{ 50 };
+			int denoiseEveryNFrames{ 10 };
 			int mode{ 0 }; // 0 = right dominant, 1 = left dominant, -1 = no reprojection
-			bool envThroughWalls = false;
 			bool pointLightEnabled{ true };
 			glm::vec3 pointLightPos{ 5.4f, 2.1f, -0.5f };        // above scene by default
 			glm::vec3 pointLightColor{ 300.0f, 250.0f, 200.0f }; // bright warm point source (W)
@@ -1752,7 +1748,6 @@ namespace nvvkhl
 			//m_frameInfo.maxLuminance = 500.0F;
 			m_frameInfo.clearColor = glm::vec4(1.F);
 			m_frameInfo.envIntensity = 1.F;
-			m_frameInfo.envThroughWalls = 0.0f;
 			m_frameInfo.pointLightPos = glm::vec4(5.4f, 2.1f, -0.5f, 0.0f); // near a typical eye height
 			m_frameInfo.pointLightColorEnabled = glm::vec4(glm::vec3(150.0f), 1.0f); // bright white, enabled
 		};
@@ -1985,11 +1980,6 @@ namespace nvvkhl
 							"Multiplies HDR environment radiance (or point light power when point light is enabled)");
 
 						reset |= PropertyEditor::entry(
-							"Env Penetrate Walls", [&]
-							{ return ImGui::Checkbox("Env Penetrate Walls", &m_settings.envThroughWalls); },
-							"When enabled, HDR environment light ignores occlusion (floods interiors)");
-
-						reset |= PropertyEditor::entry(
 							"Point Light Enabled", [&] { return ImGui::Checkbox("##ptEnable", &m_settings.pointLightEnabled); },
 							"Toggle punctual emitter (in addition to HDR)");
 
@@ -2107,6 +2097,63 @@ namespace nvvkhl
 			return proj;
 		}
 
+		void setStereoViews(XrView views[]) {
+			const float nearZ = 0.1f;
+			const float farZ = 1000.0f;
+
+			// Get the desktop camera transform as our scene base position
+			glm::vec3 sceneEye = CameraManip.getEye(); // Position of the Camera
+			glm::vec3 sceneCenter = CameraManip.getCenter(); // Point the camera is looking at
+			glm::vec3 sceneUp = CameraManip.getUp(); // Up direction for the camera
+
+			float horizontalFov = glm::degrees(views[0].fov.angleRight - views[0].fov.angleLeft);
+			CameraManip.setFov(horizontalFov);
+
+			// Build a scene-space transform: position at sceneEye, looking toward sceneCenter
+			glm::mat4 sceneBaseMat = glm::inverse(glm::lookAt(sceneEye, sceneCenter, sceneUp));
+
+			// Left eye: combine scene base with XR head pose
+			glm::mat4 xrLeftPose = xrPoseToMat4(views[0].pose);
+			glm::mat4 leftEyeWorld = sceneBaseMat * xrLeftPose;
+			glm::mat4 leftViewMat = glm::inverse(leftEyeWorld);
+			glm::mat4 leftProjMat = xrFovToProjMatrix(views[0].fov, nearZ, farZ);
+			leftProjMat[1][1] *= -1;
+
+			// Place this where you fill m_frameInfo before uploading to GPU
+			m_frameInfo.view = leftViewMat;
+			m_frameInfo.viewInv = glm::inverse(leftViewMat);
+			m_frameInfo.proj = leftProjMat;
+			m_frameInfo.projInv = glm::inverse(leftProjMat);
+
+			m_frameInfo.camPos = glm::vec4(glm::vec3(leftEyeWorld[3]), 0.0f);
+
+			setDefaultFrameInfo(m_frameInfo,
+				m_settings.envRotation,
+				m_settings.clearColor,
+				m_settings.pointLightPos,
+				m_settings.pointLightEnabled,
+				m_settings.pointLightColor);
+
+
+			// Right eye: combine scene base with XR head pose
+			glm::mat4 xrRightPose = xrPoseToMat4(views[1].pose);
+			glm::mat4 rightEyeWorld = sceneBaseMat * xrRightPose;
+			glm::mat4 rightViewMat = glm::inverse(rightEyeWorld);
+			glm::mat4 rightProjMat = xrFovToProjMatrix(views[1].fov, nearZ, farZ);
+			rightProjMat[1][1] *= -1;
+
+			m_frameInfo.view2 = rightViewMat;
+			m_frameInfo.view2Inv = glm::inverse(rightViewMat);
+			m_frameInfo.proj2 = rightProjMat;
+			m_frameInfo.proj2Inv = glm::inverse(rightProjMat);
+			m_frameInfo.camPos2 = glm::vec4(glm::vec3(rightEyeWorld[3]), 0.0f);
+
+			// Compute real IPD from XR eye poses (distance between left and right eye positions)
+			glm::vec3 leftEyePos(views[0].pose.position.x, views[0].pose.position.y, views[0].pose.position.z);
+			glm::vec3 rightEyePos(views[1].pose.position.x, views[1].pose.position.y, views[1].pose.position.z);
+			m_xrEyeSeparation = glm::distance(leftEyePos, rightEyePos);
+		}
+
 		// XR Raytracing render
 		void onRenderVR(VkCommandBuffer cmd)
 		{
@@ -2203,58 +2250,7 @@ namespace nvvkhl
 
 			// Fill per-eye FrameInfo: use CameraManip as the scene base,
 			{
-				const float nearZ = 0.1f;
-				const float farZ = 1000.0f;
-
-				// Get the desktop camera transform as our scene base position
-				glm::vec3 sceneEye = CameraManip.getEye();
-				glm::vec3 sceneCenter = CameraManip.getCenter();
-				glm::vec3 sceneUp = CameraManip.getUp();
-
-				// Build a scene-space transform: position at sceneEye, looking toward sceneCenter
-				glm::mat4 sceneBaseMat = glm::inverse(glm::lookAt(sceneEye, sceneCenter, sceneUp));
-
-				// Left eye: combine scene base with XR head pose
-				glm::mat4 xrLeftPose = xrPoseToMat4(views[0].pose);
-				glm::mat4 leftEyeWorld = sceneBaseMat * xrLeftPose;
-				glm::mat4 leftViewMat = glm::inverse(leftEyeWorld);
-				glm::mat4 leftProjMat = xrFovToProjMatrix(views[0].fov, nearZ, farZ);
-				leftProjMat[1][1] *= -1;
-
-				// Place this where you fill m_frameInfo before uploading to GPU
-				m_frameInfo.view = leftViewMat;
-				m_frameInfo.viewInv = glm::inverse(leftViewMat);
-				m_frameInfo.proj = leftProjMat;
-				m_frameInfo.projInv = glm::inverse(leftProjMat);
-
-				m_frameInfo.camPos = glm::vec4(glm::vec3(leftEyeWorld[3]), 0.0f);
-
-				setDefaultFrameInfo(m_frameInfo,
-					m_settings.envRotation,
-					m_settings.clearColor,
-					m_settings.envThroughWalls,
-					m_settings.pointLightPos,
-					m_settings.pointLightEnabled,
-					m_settings.pointLightColor);
-
-
-				// Right eye: combine scene base with XR head pose
-				glm::mat4 xrRightPose = xrPoseToMat4(views[1].pose);
-				glm::mat4 rightEyeWorld = sceneBaseMat * xrRightPose;
-				glm::mat4 rightViewMat = glm::inverse(rightEyeWorld);
-				glm::mat4 rightProjMat = xrFovToProjMatrix(views[1].fov, nearZ, farZ);
-				rightProjMat[1][1] *= -1;
-
-				m_frameInfo.view2 = rightViewMat;
-				m_frameInfo.view2Inv = glm::inverse(rightViewMat);
-				m_frameInfo.proj2 = rightProjMat;
-				m_frameInfo.proj2Inv = glm::inverse(rightProjMat);
-				m_frameInfo.camPos2 = glm::vec4(glm::vec3(rightEyeWorld[3]), 0.0f);
-				
-				// Compute real IPD from XR eye poses (distance between left and right eye positions)
-				glm::vec3 leftEyePos(views[0].pose.position.x, views[0].pose.position.y, views[0].pose.position.z);
-				glm::vec3 rightEyePos(views[1].pose.position.x, views[1].pose.position.y, views[1].pose.position.z);
-				m_xrEyeSeparation = glm::distance(leftEyePos, rightEyePos);
+				setStereoViews(views);
 			}
 
 			// VR always resets frame to 0 — each frame is a new view, no accumulation
@@ -2545,11 +2541,12 @@ namespace nvvkhl
 			glm::vec3 center = CameraManip.getCenter();
 			glm::vec3 up = CameraManip.getUp();
 
-			CameraManip.setFov(90);
-
 			// Compute camera's local right vector (parallel to ground plane)
 			glm::vec3 forward = glm::normalize(center - eyeMid);
 			glm::vec3 right = glm::normalize(glm::cross(forward, up));
+
+			CameraManip.setFov(104);
+
 
 			// Parallel stereo: offset both eye AND center by the same amount
 			// This keeps both cameras looking in the same direction (no toe-in)
@@ -2580,7 +2577,6 @@ namespace nvvkhl
 			setDefaultFrameInfo(m_frameInfo,
 				m_settings.envRotation,
 				m_settings.clearColor,
-				m_settings.envThroughWalls,
 				m_settings.pointLightPos,
 				m_settings.pointLightEnabled,
 				m_settings.pointLightColor);
@@ -3500,7 +3496,7 @@ auto main(int argc, char** argv) -> int
 		glm::vec3(0.0f, 1.0f, 0.0f),   // up
 		true                            // instant (no animation)
 	);
-	CameraManip.setFov(90.0f);
+	CameraManip.setFov(104.0f); // Estimated from Quest 3s horizontal
 
 	// Load HDR
 	//std::string hdr_file = nvh::findFile(R"(media/hdr/autumn_field_1k.hdr)", default_search_paths, true); // (180, 142, -88)

@@ -70,7 +70,7 @@ struct FrameInfo // Total size 688 byte, 16*43
 	float _pad_env;
 	float maxLuminance; // 4 bytes  (offset 564)
   float envIntensity; // 4 bytes  (offset 568) - NEW
-	float envThroughWalls;  // 4 bytes  (offset 572)  <-- 0.0 = normal, 1.0 = ignore occlusion
+	float pad_0;  // 4 bytes  (offset 572)  <-- 0.0 = normal, 1.0 = ignore occlusion
 	float pad_lights;
 	vec4 pointLightPos;
 	vec4 pointLightColorEnabled;
