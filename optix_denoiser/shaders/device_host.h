@@ -65,10 +65,16 @@ struct FrameInfo // Total size 688 byte, 16*43
 	vec4 clearColor;    // 16 bytes (offset 512)
 	vec4 camPos;        // 16 bytes (offset 528)
 	vec4 camPos2;       // 16 bytes (offset 544)
-	float envRotation;  // 4 bytes  (offset 560)
+	//float envRotation;  // 4 bytes  (offset 560)
+	vec3 envRotation;  // 12 bytes (offset 560) - NEW, padded to vec4 for std140
+	float _pad_env;
 	float maxLuminance; // 4 bytes  (offset 564)
-	float _pad0;        // 4 bytes  (offset 568) - pad to 16-byte alignment
-	float _pad1;        // 4 bytes  (offset 572)
+  float envIntensity; // 4 bytes  (offset 568) - NEW
+	float envThroughWalls;  // 4 bytes  (offset 572)  <-- 0.0 = normal, 1.0 = ignore occlusion
+	float pad_lights;
+	vec4 pointLightPos;
+	vec4 pointLightColorEnabled;
+	//float _pad1;        // 4 bytes  (offset 572)
 	//AreaLight areaLight;	   // 112 bytes (offset 568) = > total 680 bytes divided by 16
 	//float _pad0;        // 4 bytes  (offset 680) - pad to 16-byte alignment
 	//float _pad1;        // 4 bytes  (offset 684)

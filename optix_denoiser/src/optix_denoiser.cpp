@@ -222,7 +222,6 @@ XrBool32 XRAPI_PTR debugCallback(
 	return XR_FALSE;
 }
 
-
 void setupDebugMessenger()
 {
 	PFN_xrCreateDebugUtilsMessengerEXT pfnCreateDebugUtilsMessengerEXT = nullptr;
@@ -452,7 +451,25 @@ static VkInstance xrCreateVkInstance(XrInstance xrInstance, XrSystemId systemId)
 	return vkInstance;
 }
 
-// Helper: create VkDevice through OpenXR (enable2)
+void setDefaultFrameInfo(FrameInfo& frameInfo,
+	const glm::vec3& envRotation,
+	const glm::vec4& clearColor,
+	bool envThroughWalls,
+	const glm::vec3& pointLightPos,
+	bool pointLightEnabled,
+	const glm::vec3& pointLightColor)
+{
+	frameInfo.envRotation = envRotation;
+	frameInfo.clearColor = clearColor;
+	frameInfo.envThroughWalls = envThroughWalls ? 1.0f : 0.0f;
+
+	frameInfo.pointLightPos = glm::vec4(pointLightPos, 0.0f);
+	frameInfo.pointLightColorEnabled = glm::vec4(
+		pointLightEnabled ? pointLightColor : glm::vec3(0.0f),
+		pointLightEnabled ? 1.0f : 0.0f
+	);
+}
+
 // Helper: create VkDevice through OpenXR (enable2)
 static VkDevice xrCreateVkDevice(XrInstance xrInstance, XrSystemId systemId, VkPhysicalDevice physDev, uint32_t graphicsQueueFamily)
 {
@@ -1716,11 +1733,16 @@ namespace nvvkhl
 			int maxDepth{ 2 };
 			bool showAxis{ false };
 			glm::vec4 clearColor{ 1.F };
-			float envRotation{ -128.5F };
+			//float envRotation{ -128.5F };
+			glm::vec3 envRotation{ -4.F, 35.5F, 121.F };
 			bool denoiseApply{ true };
 			bool denoiseFirstFrame{ true };
-			int denoiseEveryNFrames{ 1 };
+			int denoiseEveryNFrames{ 50 };
 			int mode{ 0 }; // 0 = right dominant, 1 = left dominant, -1 = no reprojection
+			bool envThroughWalls = false;
+			bool pointLightEnabled{ true };
+			glm::vec3 pointLightPos{ 5.4f, 2.1f, -0.5f };        // above scene by default
+			glm::vec3 pointLightColor{ 300.0f, 250.0f, 200.0f }; // bright warm point source (W)
 		} m_settings;
 
 	public:
@@ -1729,6 +1751,10 @@ namespace nvvkhl
 			m_frameInfo.maxLuminance = 10.0F;
 			//m_frameInfo.maxLuminance = 500.0F;
 			m_frameInfo.clearColor = glm::vec4(1.F);
+			m_frameInfo.envIntensity = 1.F;
+			m_frameInfo.envThroughWalls = 0.0f;
+			m_frameInfo.pointLightPos = glm::vec4(5.4f, 2.1f, -0.5f, 0.0f); // near a typical eye height
+			m_frameInfo.pointLightColorEnabled = glm::vec4(glm::vec3(150.0f), 1.0f); // bright white, enabled
 		};
 
 		~OptixDenoiserEngine() override = default;
@@ -1889,9 +1915,8 @@ namespace nvvkhl
 
 		void onUIRender() override
 		{
-			//if (m_enableXR)
+			//if (m_enableXR) //	// In XR mode, the UI is rendered in-world, so skip the desktop UI.
 			//{
-			//	// In XR mode, the UI is rendered in-world, so skip the desktop UI.
 			//	return;
 			//}
 			using namespace ImGuiH;
@@ -1949,7 +1974,32 @@ namespace nvvkhl
 						reset |= PropertyEditor::entry(
 							"Rotation", [&]
 							//{ return ImGui::SliderAngle("Rotation", &m_settings.envRotation); }, "Rotating the environment");
-						{ return ImGui::SliderFloat("Rotation", &m_settings.envRotation, -128.0f, -128.5f); }, "Rotating the environment");
+						{ 
+								//return ImGui::SliderFloat("Rotation", &m_settings.envRotation, -10.0f, 10.0f); 
+								return ImGui::SliderFloat3("##EnvRot", &m_settings.envRotation.x, -180.0f, 180.0f);
+							}, "Rotating the environment");
+						
+						reset |= PropertyEditor::entry(
+							"Light Intensity", [&]
+							{ return ImGui::SliderFloat("Light Intensity", &m_frameInfo.envIntensity, 0.0f, 10.0f); },
+							"Multiplies HDR environment radiance (or point light power when point light is enabled)");
+
+						reset |= PropertyEditor::entry(
+							"Env Penetrate Walls", [&]
+							{ return ImGui::Checkbox("Env Penetrate Walls", &m_settings.envThroughWalls); },
+							"When enabled, HDR environment light ignores occlusion (floods interiors)");
+
+						reset |= PropertyEditor::entry(
+							"Point Light Enabled", [&] { return ImGui::Checkbox("##ptEnable", &m_settings.pointLightEnabled); },
+							"Toggle punctual emitter (in addition to HDR)");
+
+						reset |= PropertyEditor::entry(
+							"Point Light Pos", [&] { return ImGui::DragFloat3("##ptPos", &m_settings.pointLightPos.x, 0.1f); },
+							"World position of the punctual emitter");
+
+						reset |= PropertyEditor::entry(
+							"Point Light Color (W)", [&] { return ImGui::ColorEdit3("##ptColor", &m_settings.pointLightColor.x, ImGuiColorEditFlags_HDR); },
+							"Radiometric color/intensity for point light (linear)");
 
 						PropertyEditor::treePop();
 					}
@@ -2172,20 +2222,21 @@ namespace nvvkhl
 				leftProjMat[1][1] *= -1;
 
 				// Place this where you fill m_frameInfo before uploading to GPU
-				//m_frameInfo.areaLight.position = glm::vec3(glm::vec3(0.0f, 3.0f, 0.0f)); // Use left eye camera position
-
-				//m_frameInfo.areaLight.u = glm::vec3(2.0f, 0.0f, 0.0f);        // 2m wide (X)
-				//m_frameInfo.areaLight.v = glm::vec3(0.0f, 0.0f, 2.0f);        // 2m deep (Z)
-				//m_frameInfo.areaLight.emission = glm::vec3(3000.0f, 300.0f, 300.0f); // Bright white
-				//m_frameInfo.areaLight.area = glm::length(glm::cross(m_frameInfo.areaLight.u, m_frameInfo.areaLight.v));
-
 				m_frameInfo.view = leftViewMat;
 				m_frameInfo.viewInv = glm::inverse(leftViewMat);
 				m_frameInfo.proj = leftProjMat;
 				m_frameInfo.projInv = glm::inverse(leftProjMat);
-				m_frameInfo.envRotation = m_settings.envRotation;
-				m_frameInfo.clearColor = m_settings.clearColor;
+
 				m_frameInfo.camPos = glm::vec4(glm::vec3(leftEyeWorld[3]), 0.0f);
+
+				setDefaultFrameInfo(m_frameInfo,
+					m_settings.envRotation,
+					m_settings.clearColor,
+					m_settings.envThroughWalls,
+					m_settings.pointLightPos,
+					m_settings.pointLightEnabled,
+					m_settings.pointLightColor);
+
 
 				// Right eye: combine scene base with XR head pose
 				glm::mat4 xrRightPose = xrPoseToMat4(views[1].pose);
@@ -2526,8 +2577,13 @@ namespace nvvkhl
 
 			m_frameInfo.camPos2 = glm::vec4(eyeRight, 0.0f);
 
-			m_frameInfo.envRotation = m_settings.envRotation;
-			m_frameInfo.clearColor = m_settings.clearColor;
+			setDefaultFrameInfo(m_frameInfo,
+				m_settings.envRotation,
+				m_settings.clearColor,
+				m_settings.envThroughWalls,
+				m_settings.pointLightPos,
+				m_settings.pointLightEnabled,
+				m_settings.pointLightColor);
 
 			vkCmdUpdateBuffer(cmd, m_bFrameInfo.buffer, 0, sizeof(FrameInfo), &m_frameInfo);
 
@@ -3447,9 +3503,12 @@ auto main(int argc, char** argv) -> int
 	CameraManip.setFov(90.0f);
 
 	// Load HDR
-	std::string hdr_file = nvh::findFile(R"(media/hdr/kloppenheim_06_puresky_1k.hdr)", default_search_paths, true);
-	//std::string hdr_file = nvh::findFile(R"(media/hdr/kloppenheim_06_4k.hdr)", default_search_paths, true);
-	//std::string hdr_file = nvh::findFile(R"(media/hdr/kloppenheim_06_4k.hdr)", default_search_paths, true);
+	//std::string hdr_file = nvh::findFile(R"(media/hdr/autumn_field_1k.hdr)", default_search_paths, true); // (180, 142, -88)
+	//std::string hdr_file = nvh::findFile(R"(media/hdr/autumn_hilly_field_1k.hdr)", default_search_paths, true); // (110, 180, -96 )
+	//std::string hdr_file = nvh::findFile(R"(media/hdr/golden_gate_hills_1k.hdr)", default_search_paths, true); // (-53, 151, 2)
+	//std::string hdr_file = nvh::findFile(R"(media/hdr/qwantani_noon_puresky_1k.hdr)", default_search_paths, true); // good (112, 49, 158)
+	std::string hdr_file = nvh::findFile(R"(media/hdr/spruit_sunrise_1k.hdr)", default_search_paths, true); //better (-4.6, 35, 121) 
+
 
 	optixDenoiser->onFileDrop(hdr_file.c_str());
 

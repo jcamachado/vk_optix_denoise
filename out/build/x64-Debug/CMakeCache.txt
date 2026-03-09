@@ -21,7 +21,7 @@ ARCH:STRING=x64
 BASE_DIRECTORY:PATH=G:/Repositories/jaxeproj
 
 //Path to a program.
-CMAKE_AR:FILEPATH=F:/Apps/VStudio/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/lib.exe
+CMAKE_AR:FILEPATH=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/lib.exe
 
 //No help, variable specified on the command line.
 CMAKE_BUILD_TYPE:STRING=Debug
@@ -96,7 +96,7 @@ CMAKE_FIND_PACKAGE_REDIRECTS_DIR:STATIC=G:/Repositories/jaxeproj/vk_denoise/out/
 CMAKE_INSTALL_PREFIX:PATH=G:/Repositories/jaxeproj/vk_denoise/out/install/x64-Debug
 
 //Path to a program.
-CMAKE_LINKER:FILEPATH=F:/Apps/VStudio/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/link.exe
+CMAKE_LINKER:FILEPATH=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/link.exe
 
 //make program
 CMAKE_MAKE_PROGRAM:FILEPATH=C:/Program Files/Microsoft Visual Studio/18/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe
@@ -181,23 +181,23 @@ CMAKE_SKIP_INSTALL_RPATH:BOOL=NO
 //If set, runtime paths are not added when using shared libraries.
 CMAKE_SKIP_RPATH:BOOL=NO
 
-//Flags used by the linker during the creation of static libraries
+//Flags used by the archiver during the creation of static libraries
 // during all build types.
 CMAKE_STATIC_LINKER_FLAGS:STRING=/machine:x64
 
-//Flags used by the linker during the creation of static libraries
+//Flags used by the archiver during the creation of static libraries
 // during DEBUG builds.
 CMAKE_STATIC_LINKER_FLAGS_DEBUG:STRING=
 
-//Flags used by the linker during the creation of static libraries
+//Flags used by the archiver during the creation of static libraries
 // during MINSIZEREL builds.
 CMAKE_STATIC_LINKER_FLAGS_MINSIZEREL:STRING=
 
-//Flags used by the linker during the creation of static libraries
+//Flags used by the archiver during the creation of static libraries
 // during RELEASE builds.
 CMAKE_STATIC_LINKER_FLAGS_RELEASE:STRING=
 
-//Flags used by the linker during the creation of static libraries
+//Flags used by the archiver during the creation of static libraries
 // during RELWITHDEBINFO builds.
 CMAKE_STATIC_LINKER_FLAGS_RELWITHDEBINFO:STRING=
 
@@ -382,9 +382,6 @@ CUDA_nvJitLink_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CU
 
 //Path to a library.
 CUDA_nvJitLink_static_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9/lib/x64/nvJitLink_static.lib
-
-//Path to a library.
-CUDA_nvToolsExt_LIBRARY:FILEPATH=CUDA_nvToolsExt_LIBRARY-NOTFOUND
 
 //Path to a library.
 CUDA_nvfatbin_LIBRARY:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9/lib/x64/nvfatbin.lib
@@ -723,8 +720,6 @@ CUDA_npps_static_LIBRARY-ADVANCED:INTERNAL=1
 CUDA_nvJitLink_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_nvJitLink_static_LIBRARY
 CUDA_nvJitLink_static_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CUDA_nvToolsExt_LIBRARY
-CUDA_nvToolsExt_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_nvfatbin_LIBRARY
 CUDA_nvfatbin_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CUDA_nvfatbin_static_LIBRARY

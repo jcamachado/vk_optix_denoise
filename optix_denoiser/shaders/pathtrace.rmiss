@@ -38,11 +38,28 @@ layout(set = 2, binding = eHdr) uniform sampler2D hdrTexture;
 
 void main()
 {
+  if (frameInfo.pointLightColorEnabled.w > 0.5)
+  {
+    payload.contrib = vec3(0.0);
+    payload.hitT    = INFINITE;
+    return;
+  }
   // Adding HDR lookup
-  vec3 dir        = rotate(gl_WorldRayDirectionEXT, vec3(0, 1, 0), -frameInfo.envRotation);
+  // Apply per-axis rotation: envRotation is a vec3 in degrees, convert to radians
+  vec3 rot = radians(frameInfo.envRotation);
+
+  vec3 dir = gl_WorldRayDirectionEXT;
+  // Miss rotates the incoming ray by the inverse of the environment rotation
+  //vec3 dir        = rotate(gl_WorldRayDirectionEXT, vec3(0, 1, 0), -frameInfo.envRotation);
+  dir = rotate(dir, vec3(1.0, 0.0, 0.0), -rot.x);
+  dir = rotate(dir, vec3(0.0, 1.0, 0.0), -rot.y);
+  dir = rotate(dir, vec3(0.0, 0.0, 1.0), -rot.z);
+
+
   vec2 uv         = getSphericalUv(dir);  // See sampling.glsl
   vec3 env        = texture(hdrTexture, uv).rgb;
-  payload.contrib = env * frameInfo.clearColor.xyz;
+  payload.contrib = env * frameInfo.clearColor.xyz * frameInfo.envIntensity;
+  //payload.contrib = env * frameInfo.clearColor.xyz;
 
   payload.hitT = INFINITE;  // Ending trace
 }
