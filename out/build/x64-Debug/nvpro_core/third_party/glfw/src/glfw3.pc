@@ -1,0 +1,13 @@
+prefix=G:/Repositories/jaxeproj/vk_denoise/out/install/x64-Debug
+exec_prefix=${prefix}
+includedir=G:/Repositories/jaxeproj/vk_denoise/out/install/x64-Debug/include
+libdir=G:/Repositories/jaxeproj/vk_denoise/out/install/x64-Debug/lib
+
+Name: GLFW
+Description: A multi-platform library for OpenGL, window and input
+Version: 3.4.0
+URL: https://www.glfw.org/
+Requires.private: 
+Libs: -L${libdir} -lglfw3
+Libs.private:  -lgdi32
+Cflags: -I${includedir}

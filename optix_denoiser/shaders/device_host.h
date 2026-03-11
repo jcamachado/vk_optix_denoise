@@ -9,6 +9,8 @@ using vec3 = glm::vec3;
 
 #include "nvvkhl/shaders/dh_lighting.h"
 
+// TODO change small ints for uint8_t and pack more data into 32 bytes if possible
+// TODO get the number of rays per camera and display
 struct PushConstant // total 32 bytes
 {
   int frame;      // For RTX 4 bytes
@@ -24,23 +26,6 @@ struct PushConstant // total 32 bytes
 };
 
 #define MAX_NB_LIGHTS 1
-#define GRID_SIZE 16
-
-// std140-friendly: use vec4 instead of vec3 to match GPU alignment
-//struct FrameInfo // Total size 320 bytes (matches std140)
-//{
-//	mat4 proj;          // 64 bytes (offset 0)
-//	mat4 proj2;         // 64 bytes (offset 64)
-//	mat4 view;          // 64 bytes (offset 128)
-//	mat4 view2;         // 64 bytes (offset 192)
-//	vec4 clearColor;    // 16 bytes (offset 256)
-//	vec4 camPos;        // 16 bytes (offset 272) - was vec3, padded to vec4 for std140
-//	vec4 camPos2;       // 16 bytes (offset 288) - was vec3, padded to vec4 for std140
-//	float envRotation;  // 4 bytes  (offset 304)
-//	float maxLuminance; // 4 bytes  (offset 308)
-//	float _pad0;        // 4 bytes  (offset 312) - pad to 16-byte alignment
-//	float _pad1;        // 4 bytes  (offset 316)
-//};
 
 struct AreaLight // Total size 112 bytes
 {
@@ -51,7 +36,9 @@ struct AreaLight // Total size 112 bytes
 	float area;      // Precomputed area
 };
 
-
+// TODO size smart the types to pack more data in less space.
+// TODO Understand why doesnt seem to get blurry edges on shadows
+// Improve lighting and path or ray tracing 
 struct FrameInfo // Total size 688 byte, 16*43
 {
 	mat4 proj;          // 64 bytes (offset 0)
@@ -65,19 +52,14 @@ struct FrameInfo // Total size 688 byte, 16*43
 	vec4 clearColor;    // 16 bytes (offset 512)
 	vec4 camPos;        // 16 bytes (offset 528)
 	vec4 camPos2;       // 16 bytes (offset 544)
-	//float envRotation;  // 4 bytes  (offset 560)
 	vec3 envRotation;  // 12 bytes (offset 560) - NEW, padded to vec4 for std140
 	float _pad_env;
 	float maxLuminance; // 4 bytes  (offset 564)
-  float envIntensity; // 4 bytes  (offset 568) - NEW
+	float envIntensity; // 4 bytes  (offset 568) - NEW
 	float pad_0;  // 4 bytes  (offset 572)  <-- 0.0 = normal, 1.0 = ignore occlusion
-	float pad_lights;
+	int nRaysEmmited;
 	vec4 pointLightPos;
 	vec4 pointLightColorEnabled;
-	//float _pad1;        // 4 bytes  (offset 572)
-	//AreaLight areaLight;	   // 112 bytes (offset 568) = > total 680 bytes divided by 16
-	//float _pad0;        // 4 bytes  (offset 680) - pad to 16-byte alignment
-	//float _pad1;        // 4 bytes  (offset 684)
 };
 
 

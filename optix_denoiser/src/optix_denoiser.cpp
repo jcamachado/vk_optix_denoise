@@ -1738,7 +1738,7 @@ namespace nvvkhl
 			int mode{ 0 }; // 0 = right dominant, 1 = left dominant, -1 = no reprojection
 			bool pointLightEnabled{ true };
 			glm::vec3 pointLightPos{ 5.4f, 2.1f, -0.5f };        // above scene by default
-			glm::vec3 pointLightColor{ 300.0f, 250.0f, 200.0f }; // bright warm point source (W)
+			glm::vec3 pointLightColor{ 300.0f, 300.0f, 300.0f }; 
 		} m_settings;
 
 	public:
@@ -1963,7 +1963,8 @@ namespace nvvkhl
 					{
 						reset |= PropertyEditor::entry(
 							"Color", [&]
-							{ return ImGui::ColorEdit3("##Color", &m_settings.clearColor.x, ImGuiColorEditFlags_Float); },
+							{ return ImGui::ColorEdit3(
+								"##Color", &m_settings.clearColor.x, ImGuiColorEditFlags_Float); },
 							"Color multiplier");
 
 						reset |= PropertyEditor::entry(
@@ -1976,7 +1977,7 @@ namespace nvvkhl
 						
 						reset |= PropertyEditor::entry(
 							"Light Intensity", [&]
-							{ return ImGui::SliderFloat("Light Intensity", &m_frameInfo.envIntensity, 0.0f, 10.0f); },
+							{ return ImGui::SliderFloat("Light Intensity", &m_frameInfo.envIntensity, 0.0f, 1000.0f); },
 							"Multiplies HDR environment radiance (or point light power when point light is enabled)");
 
 						reset |= PropertyEditor::entry(
@@ -2101,31 +2102,43 @@ namespace nvvkhl
 			const float nearZ = 0.1f;
 			const float farZ = 1000.0f;
 
-			// Get the desktop camera transform as our scene base position
-			glm::vec3 sceneEye = CameraManip.getEye(); // Position of the Camera
-			glm::vec3 sceneCenter = CameraManip.getCenter(); // Point the camera is looking at
-			glm::vec3 sceneUp = CameraManip.getUp(); // Up direction for the camera
+			if (!m_xrProjCached) {
+				m_cachedLeftProj = xrFovToProjMatrix(views[0].fov, nearZ, farZ);
+				m_cachedLeftProj[1][1] *= -1;
+				m_cachedRightProj = xrFovToProjMatrix(views[1].fov, nearZ, farZ);
+				m_cachedRightProj[1][1] *= -1;
+				m_cachedLeftProjInv = glm::inverse(m_cachedLeftProj);
+				m_cachedRightProjInv = glm::inverse(m_cachedRightProj);
+				m_xrProjCached = true;
+			}
 
 			float horizontalFov = glm::degrees(views[0].fov.angleRight - views[0].fov.angleLeft);
 			CameraManip.setFov(horizontalFov);
 
+			// Get the desktop camera transform as our scene base position
+			glm::vec3 sceneEye = CameraManip.getEye(); // Position of the Camera
+			glm::vec3 sceneCenter = CameraManip.getCenter(); // Point the camera is looking at
+			glm::vec3 sceneUp = CameraManip.getUp(); // Up direction for the camera
 			// Build a scene-space transform: position at sceneEye, looking toward sceneCenter
 			glm::mat4 sceneBaseMat = glm::inverse(glm::lookAt(sceneEye, sceneCenter, sceneUp));
 
-			// Left eye: combine scene base with XR head pose
-			glm::mat4 xrLeftPose = xrPoseToMat4(views[0].pose);
-			glm::mat4 leftEyeWorld = sceneBaseMat * xrLeftPose;
-			glm::mat4 leftViewMat = glm::inverse(leftEyeWorld);
-			glm::mat4 leftProjMat = xrFovToProjMatrix(views[0].fov, nearZ, farZ);
-			leftProjMat[1][1] *= -1;
 
-			// Place this where you fill m_frameInfo before uploading to GPU
-			m_frameInfo.view = leftViewMat;
-			m_frameInfo.viewInv = glm::inverse(leftViewMat);
-			m_frameInfo.proj = leftProjMat;
-			m_frameInfo.projInv = glm::inverse(leftProjMat);
+			// Left eye: combine scene base with XR head pose and avoid double inverse: viewInv IS leftWorld
+			glm::mat4 leftWorld = sceneBaseMat * xrPoseToMat4(views[0].pose);
+			m_frameInfo.view = glm::inverse(leftWorld);
+			m_frameInfo.viewInv = leftWorld;                 // ✅ No extra inverse
+			m_frameInfo.proj = m_cachedLeftProj;          // ✅ Cached
+			m_frameInfo.projInv = m_cachedLeftProjInv;       // ✅ Cached
+			m_frameInfo.camPos = glm::vec4(leftWorld[3]);
 
-			m_frameInfo.camPos = glm::vec4(glm::vec3(leftEyeWorld[3]), 0.0f);
+			// Right eye — same pattern
+			glm::mat4 rightWorld = sceneBaseMat * xrPoseToMat4(views[1].pose);
+			m_frameInfo.view2 = glm::inverse(rightWorld);
+			m_frameInfo.view2Inv = rightWorld;               // ✅ No extra inverse
+			m_frameInfo.proj2 = m_cachedRightProj;        // ✅ Cached
+			m_frameInfo.proj2Inv = m_cachedRightProjInv;     // ✅ Cached
+			m_frameInfo.camPos2 = glm::vec4(rightWorld[3]);
+
 
 			setDefaultFrameInfo(m_frameInfo,
 				m_settings.envRotation,
@@ -2134,19 +2147,6 @@ namespace nvvkhl
 				m_settings.pointLightEnabled,
 				m_settings.pointLightColor);
 
-
-			// Right eye: combine scene base with XR head pose
-			glm::mat4 xrRightPose = xrPoseToMat4(views[1].pose);
-			glm::mat4 rightEyeWorld = sceneBaseMat * xrRightPose;
-			glm::mat4 rightViewMat = glm::inverse(rightEyeWorld);
-			glm::mat4 rightProjMat = xrFovToProjMatrix(views[1].fov, nearZ, farZ);
-			rightProjMat[1][1] *= -1;
-
-			m_frameInfo.view2 = rightViewMat;
-			m_frameInfo.view2Inv = glm::inverse(rightViewMat);
-			m_frameInfo.proj2 = rightProjMat;
-			m_frameInfo.proj2Inv = glm::inverse(rightProjMat);
-			m_frameInfo.camPos2 = glm::vec4(glm::vec3(rightEyeWorld[3]), 0.0f);
 
 			// Compute real IPD from XR eye poses (distance between left and right eye positions)
 			glm::vec3 leftEyePos(views[0].pose.position.x, views[0].pose.position.y, views[0].pose.position.z);
@@ -2309,7 +2309,7 @@ namespace nvvkhl
 
 
 #if defined(NVP_SUPPORTS_OPTIX9) || defined(NVP_SUPPORTS_OPTIX7)
-			// Denoise in VR — must sync Vulkan→CUDA→Vulkan inline
+			// Submit cmd[0]: signal CUDA when raytracing is done
 			if (m_settings.denoiseApply)
 			{
 				copyImagesToCuda(vkCmd);
@@ -2336,12 +2336,12 @@ namespace nvvkhl
 				denoiseImage();
 
 				// Wait for CUDA to finish
-				VkSemaphore tlSemaphore = m_denoiser->getTLSemaphore();
-				VkSemaphoreWaitInfo waitInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO };
-				waitInfo.semaphoreCount = 1;
-				waitInfo.pSemaphores = &tlSemaphore;
-				waitInfo.pValues = &m_fenceValue;
-				vkWaitSemaphores(m_device, &waitInfo, UINT64_MAX);
+				//VkSemaphore tlSemaphore = m_denoiser->getTLSemaphore();
+				//VkSemaphoreWaitInfo waitInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO };
+				//waitInfo.semaphoreCount = 1;
+				//waitInfo.pSemaphores = &tlSemaphore;
+				//waitInfo.pValues = &m_fenceValue;
+				//vkWaitSemaphores(m_device, &waitInfo, UINT64_MAX);
 
 				// Start new command buffer for the rest of the frame
 				vkCmd = commandFrame.cmdBuffer[1];
@@ -2357,7 +2357,6 @@ namespace nvvkhl
 				m_gBuffers->getDescriptorImageInfo(
 					m_settings.denoiseApply ? eGbufDenoised : eGBufResult),
 				m_gBuffers->getDescriptorImageInfo(eGBufLdr));
-
 
 			m_tonemapper->runCompute(vkCmd, m_gBuffers->getSize());
 
@@ -2376,7 +2375,7 @@ namespace nvvkhl
 					0, 0, nullptr, 0, nullptr, 1, &ldrBarrier);
 			}
 
-			// Blit left half of LDR to left eye, right half to right eye
+			// Blit LDR → XR swapchain left half of LDR to left eye, right half to right eye
 			{
 				VkImage src = m_gBuffers->getColorImage(eGBufLdr);
 				VkImage dst = g_openXRState.swapchainImages[swapchainImageIndex].image;
@@ -2406,8 +2405,7 @@ namespace nvvkhl
 				}
 			}
 
-			// Final layout transitions
-			{
+			{	// Final layout transitions
 				const uint32_t idx = swapchainImageIndex;
 				VkImage swapImg = g_openXRState.swapchainImages[idx].image;
 
@@ -2429,7 +2427,7 @@ namespace nvvkhl
 				g_openXRState.swapchainImageLayouts[idx] = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 			}
 
-			{
+			{	// Restore LDR to GENERAL for next frame
 				VkImageMemoryBarrier ldrBarrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
 				ldrBarrier.image = m_gBuffers->getColorImage(eGBufLdr);
 				ldrBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
@@ -2442,33 +2440,48 @@ namespace nvvkhl
 					VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
 					0, 0, nullptr, 0, nullptr, 1, &ldrBarrier);
 			}
-
-			// End command buffer BEFORE releasing swapchain
-			vkEndCommandBuffer(vkCmd);
+			vkEndCommandBuffer(vkCmd); // End command buffer BEFORE releasing swapchain
 
 			// Submit GPU work and wait
-			
 			if (m_vrFence == VK_NULL_HANDLE)
 			{
 				VkFenceCreateInfo fci{ VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
 				vkCreateFence(m_device, &fci, nullptr, &m_vrFence);
-			}
-			else
-			{
+			} else {
 				vkResetFences(m_device, 1, &m_vrFence);
 			}
 
-			VkCommandBufferSubmitInfo cmdInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO };
-			cmdInfo.commandBuffer = vkCmd;
-			VkSubmitInfo2 submit2{ VK_STRUCTURE_TYPE_SUBMIT_INFO_2 };
-			submit2.commandBufferInfoCount = 1;
-			submit2.pCommandBufferInfos = &cmdInfo;
-
-			vkQueueSubmit2(m_app->getQueue(0).queue, 1, &submit2, m_vrFence);
-			vkWaitForFences(m_device, 1, &m_vrFence, VK_TRUE, UINT64_MAX);
-
-			// Release swapchain AFTER GPU finishes
+#if defined(NVP_SUPPORTS_OPTIX9) || defined(NVP_SUPPORTS_OPTIX7)
+			if (m_settings.denoiseApply) {
+				// ✅ GPU waits for CUDA semaphore — no CPU stall!
+				VkSemaphoreSubmitInfo wait_sem{
+					.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR,
+					.semaphore = m_denoiser->getTLSemaphore(),
+					.value = m_fenceValue,
+					.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+				};
+				VkCommandBufferSubmitInfo cmd1_info{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO_KHR, nullptr, vkCmd };
+				VkSubmitInfo2KHR submit1{
+					.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2_KHR,
+					.waitSemaphoreInfoCount = 1,
+					.pWaitSemaphoreInfos = &wait_sem,
+					.commandBufferInfoCount = 1,
+					.pCommandBufferInfos = &cmd1_info,
+				};
+				vkQueueSubmit2(m_app->getQueue(0).queue, 1, &submit1, m_vrFence);
+			} else
+#endif
 			{
+				VkCommandBufferSubmitInfo cmdInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO };
+				cmdInfo.commandBuffer = vkCmd;
+				VkSubmitInfo2 submit2{ VK_STRUCTURE_TYPE_SUBMIT_INFO_2 };
+				submit2.commandBufferInfoCount = 1;
+				submit2.pCommandBufferInfos = &cmdInfo;
+				vkQueueSubmit2(m_app->getQueue(0).queue, 1, &submit2, m_vrFence);
+			}
+				vkWaitForFences(m_device, 1, &m_vrFence, VK_TRUE, UINT64_MAX);
+			
+			{	// Release swapchain AFTER GPU finishes
 				XrSwapchainImageReleaseInfo releaseInfo{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
 				XR_CHECK(xrReleaseSwapchainImage(g_openXRState.swapchain, &releaseInfo));
 			}
@@ -3315,6 +3328,12 @@ namespace nvvkhl
 		float m_blendFactor = 0.0f;
 		float m_middleRadius = 0.6f;
 		float m_xrEyeSeparation = 0.063f;
+		// m_xrProjCached and m_cachedLeftProj/m_cachedRightProj
+		glm::mat4 m_cachedLeftProj{ 1.0f };
+		glm::mat4 m_cachedRightProj{ 1.0f };
+		glm::mat4 m_cachedLeftProjInv{ 1.0f };
+		glm::mat4 m_cachedRightProjInv{ 1.0f };
+		bool      m_xrProjCached{ false };
 
 		// Command buffers for rendering
 		struct CommandFrame
