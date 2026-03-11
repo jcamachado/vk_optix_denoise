@@ -37,29 +37,44 @@ layout(set = 2, binding = eHdr) uniform sampler2D hdrTexture;
 
 
 void main()
-{
+{// When point light is active, env contribution is disabled — no MIS needed
   if (frameInfo.pointLightColorEnabled.w > 0.5)
   {
     payload.contrib = vec3(0.0);
     payload.hitT    = INFINITE;
     return;
   }
+
+
+
   // Adding HDR lookup
   // Apply per-axis rotation: envRotation is a vec3 in degrees, convert to radians
   vec3 rot = radians(frameInfo.envRotation);
-
   vec3 dir = gl_WorldRayDirectionEXT;
   // Miss rotates the incoming ray by the inverse of the environment rotation
   //vec3 dir        = rotate(gl_WorldRayDirectionEXT, vec3(0, 1, 0), -frameInfo.envRotation);
   dir = rotate(dir, vec3(1.0, 0.0, 0.0), -rot.x);
   dir = rotate(dir, vec3(0.0, 1.0, 0.0), -rot.y);
   dir = rotate(dir, vec3(0.0, 0.0, 1.0), -rot.z);
-
-
   vec2 uv         = getSphericalUv(dir);  // See sampling.glsl
   vec3 env        = texture(hdrTexture, uv).rgb;
-  payload.contrib = env * frameInfo.clearColor.xyz * frameInfo.envIntensity;
+  
+  // --- MIS: BSDF-side weight (power heuristic β=2) ---
+  // env sampling PDF is stored in hdrTexture.w (precomputed by NVVK HdrEnv)
+  // payload.bsdfPdf = 0 → primary ray or first hit: no competing NEE → weight = 1
+  float mis_weight = 1.0;
+  float envPdf     = texture(hdrTexture, uv).w;
+  if (payload.bsdfPdf > 0.0 && envPdf > 1e-10)
+  {
+    float a2    = payload.bsdfPdf * payload.bsdfPdf;
+    float b2    = envPdf * envPdf;
+    mis_weight  = a2 / (a2 + b2 + 1e-10);
+    // Complement of the NEE weight applied in rchit: powerHeuristic(lightPdf, bsdfPdf)
+    // Together they partition energy without double-counting or energy loss
+  }
+  
+  //payload.contrib = env * frameInfo.clearColor.xyz * frameInfo.envIntensity;
   //payload.contrib = env * frameInfo.clearColor.xyz;
-
+  payload.contrib = env * mis_weight * frameInfo.clearColor.xyz * frameInfo.envIntensity;
   payload.hitT = INFINITE;  // Ending trace
 }

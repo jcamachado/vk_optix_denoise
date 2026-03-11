@@ -63,7 +63,14 @@ layout(push_constant) uniform RtxPushConstant_ { PushConstant pc; };
 #include "nvvkhl/shaders/pbr_mat_eval.h"  // texturesMap
 #include "nvvkhl/shaders/hdr_env_sampling.h"
 
-
+// Power heuristic (β=2): better variance than balance heuristic
+// Weights contribution of technique A against technique B
+float mis_powerHeuristic(float pdfA, float pdfB)
+{
+  float a2 = pdfA * pdfA;
+  float b2 = pdfB * pdfB;
+  return a2 / (a2 + b2 + 1e-10);
+}
 void stopPath()
 {
   payload.hitT = INFINITE;
@@ -76,6 +83,7 @@ struct ShadingResult
   vec3 rayOrigin;
   vec3 rayDirection;
 };
+
 vec2 dirToEnvUV(vec3 d)
 {
   float phi = atan(d.z, d.x); // -PI..PI
@@ -105,16 +113,13 @@ vec3 envRadianceDir(vec3 dir, out float pdf)
 //      The contribution divided by PDF
 //      The direction to the light source
 //      The PDF
-//
-  // helper: Rodrigues rotate a vector 'v' around axis 'a' by angle 'ang'
+// helper: Rodrigues rotate a vector 'v' around axis 'a' by angle 'ang'
 vec3 rodrigues_rotate(vec3 v, vec3 a, float ang)
 {
     float c = cos(ang);
     float s = sin(ang);
     return v * c + cross(a, v) * s + a * dot(a, v) * (1.0 - c);
 }
-
-
 
 vec3 sampleLights(in HitState state, inout uint seed, out vec3 dirToLight, out float lightPdf)
 {
@@ -150,15 +155,12 @@ vec3 sampleLights(in HitState state, inout uint seed, out vec3 dirToLight, out f
 
 
 //-----------------------------------------------------------------------
-//-----------------------------------------------------------------------
 ShadingResult shading(in PbrMaterial pbrMat, in HitState hit)
 {
   ShadingResult result;
 
   vec3 to_eye = -gl_WorldRayDirectionEXT;
-
-  result.radiance = pbrMat.emissive;  // Emissive material
-
+  result.radiance = pbrMat.emissive;  //Emissive material
 
   // Light contribution; can be environment or punctual lights
   vec3  contribution         = vec3(0);
@@ -166,21 +168,52 @@ ShadingResult shading(in PbrMaterial pbrMat, in HitState hit)
   float lightPdf             = 0.F;
   vec3  lightRadianceOverPdf = sampleLights(hit, payload.seed, dirToLight, lightPdf);
 
-// --- Point light next-event estimation (delta light, MIS weight = 1) ---
+  // --- Point light next-event estimation (delta light, MIS weight = 1) ---
   if (frameInfo.pointLightColorEnabled.w > 0.5)
   {
-    vec3  toLightPL = vec3(frameInfo.pointLightPos) - hit.pos;
+    vec3  toLightPL = vec3(frameInfo.pointLightPos) - hit.pos;  //xyz vector
+    float lightRadius = frameInfo.pointLightPos.w; // w>0 => sphere
     float dist2     = dot(toLightPL, toLightPL);
+
     if (dist2 > 1e-6)
     {
       float dist    = sqrt(dist2);
       vec3  dirToPL = toLightPL / dist;
+      vec3 sampleDir = dirToPL;     //default: exact direction (hard shadow point light)
 
-      if (dot(dirToPL, hit.geonrm) > 0.0)
+        // sphere area light: randomize direction within subtended cone -> soft shadows
+        // explain these calculations below 
+        // The point light is treated as a sphere with radius = lightRadius. When the hit point is close to the light, the subtended cone is large, and we want to sample directions within that cone to get soft shadows. When the hit point is far from the light, the subtended cone is small, and we can just sample the exact direction to the center of the light for hard shadows.
+        // The code calculates the maximum angle of the cone (thetaMax) that subtends the sphere light from the hit point. It then samples a random direction within that cone using spherical coordinates (theta, phi). The orthonormal frame (T, B, dirToPL) is used to convert the sampled spherical direction into a world space direction (sampleDir).
+        // The condition (lightRadius > 0.0 && dist > lightRadius) ensures that we only do this sampling when the light has a non-zero radius and the hit point is outside the sphere of the light. If the hit point is inside the sphere of the light, we can just use the exact direction to the center for simplicity.
+        // The math for the cone sampling is as follows:
+        // - sinThetaMax = lightRadius / dist
+        // - cosThetaMax = sqrt(1 - sinThetaMax^2)
+        // - Sample cosTheta uniformly between cosThetaMax and 1: cosTheta =
+        //   1 - u1 * (1 - cosThetaMax) where u1 is a random number in [0, 1]
+        // - Sample phi uniformly in [0, 2*pi]: phi = u2 *
+        //   2 * pi where u2 is a random number in [0, 1]
+
+      if (lightRadius > 0.0 && dist > lightRadius){
+        float sinThetaMax2 = (lightRadius * lightRadius) / dist2;
+        float cosThetaMax  = sqrt(max(0.0, 1.0 - sinThetaMax2));
+        float u1           = rand(payload.seed);
+        float u2           = rand(payload.seed);
+        float cosTheta     = 1.0 - u1 * (1.0 - cosThetaMax);
+        float sinTheta     = sqrt(max(0.0, 1.0 - cosTheta * cosTheta));
+        float phi          = u2 * 2.0 * M_PI;
+        // Orthonormal frame around dirToPL
+        vec3 T = abs(dirToPL.x) > 0.9 ? normalize(cross(dirToPL, vec3(0, 1, 0)))
+                                       : normalize(cross(dirToPL, vec3(1, 0, 0)));
+        vec3 B = cross(dirToPL, T);
+        sampleDir = normalize(sinTheta * cos(phi) * T + sinTheta * sin(phi) * B + cosTheta * dirToPL);
+      }
+
+      if (dot(dirToPL, hit.geonrm) > 0.0) // light is above the surface, can contribute
       {
         BsdfEvaluateData evalPL;
         evalPL.k1 = -gl_WorldRayDirectionEXT;
-        evalPL.k2 = dirToPL;
+        evalPL.k2 = sampleDir;
         evalPL.xi = vec3(rand(payload.seed), rand(payload.seed), rand(payload.seed));
         bsdfEvaluate(evalPL, pbrMat);
 
@@ -189,14 +222,17 @@ ShadingResult shading(in PbrMaterial pbrMat, in HitState hit)
         uint ray_flag = gl_RayFlagsTerminateOnFirstHitEXT
                       | gl_RayFlagsSkipClosestHitShaderEXT
                       | gl_RayFlagsCullBackFacingTrianglesEXT;
+        // For sphere lights, shadow ray travels up to the sphere surface
+        float shadowTMax = (lightRadius > 0.0) ? dist : dist - 0.001;
         payload.hitT = 0.0;
-        traceRayEXT(topLevelAS, ray_flag, 0xFF, 0, 0, 0, shadowOrigin, 0.001, dirToPL, dist - 0.001, 0);
+        traceRayEXT(topLevelAS, ray_flag, 0xFF, 0, 0, 0, 
+            shadowOrigin, 0.001, sampleDir, shadowTMax, 0);
         bool visible = (payload.hitT == INFINITE);
         payload.hitT = gl_HitTEXT;
 
         if (visible)
         {
-          const float inv4pi = 0.07957747154;
+          const float inv4pi = 0.07957747154; // 1/(4*pi)
           vec3 radiancePL = vec3(frameInfo.pointLightColorEnabled) * (inv4pi / dist2) * frameInfo.envIntensity;
 
           // Write directly to result.radiance — point light has its own shadow ray,
@@ -210,7 +246,7 @@ ShadingResult shading(in PbrMaterial pbrMat, in HitState hit)
 
   const bool nextEventValid = (dot(dirToLight, hit.geonrm) > 0.0f) && lightPdf != 0.0f;
 
-  // Evaluate BSDF
+  // Evaluate BSDF for env NEE direction — power heuristic MIS (β=2)
   if(nextEventValid)
   {
     BsdfEvaluateData evalData;
@@ -221,9 +257,10 @@ ShadingResult shading(in PbrMaterial pbrMat, in HitState hit)
 
     if(evalData.pdf > 0.0)
     {
-      const float mis_weight = lightPdf / (lightPdf + evalData.pdf);
+      // Power heuristic (β=2): reduces variance vs balance heuristic (β=1)
+      // w = pA^2 / (pA^2 + pB^2) — up-weights the technique with higher PDF
+      const float mis_weight = mis_powerHeuristic(lightPdf, evalData.pdf);
 
-      // sample weight
       const vec3 w = lightRadianceOverPdf * mis_weight;
       contribution += w * evalData.bsdf_diffuse;
       contribution += w * evalData.bsdf_glossy;
@@ -247,6 +284,8 @@ ShadingResult shading(in PbrMaterial pbrMat, in HitState hit)
     result.rayDirection = sampleData.k2;
     vec3 offsetDir      = dot(result.rayDirection, hit.geonrm) > 0 ? hit.geonrm : -hit.geonrm;
     result.rayOrigin    = offsetRay(hit.pos, offsetDir);
+
+    payload.bsdfPdf = sampleData.pdf;
   }
   /*
   if(nextEventValid)
@@ -264,7 +303,9 @@ ShadingResult shading(in PbrMaterial pbrMat, in HitState hit)
   if(nextEventValid)
   {
     // Shadow ray - stop at the first intersection, don't invoke the closest hit shader (fails for transparent objects)
-    uint ray_flag = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT | gl_RayFlagsCullBackFacingTrianglesEXT;
+    uint ray_flag = gl_RayFlagsTerminateOnFirstHitEXT 
+        | gl_RayFlagsSkipClosestHitShaderEXT 
+        | gl_RayFlagsCullBackFacingTrianglesEXT;
     payload.hitT = 0.0F;
     traceRayEXT(topLevelAS, ray_flag, 0xFF, 0, 0, 0, result.rayOrigin, 0.001, dirToLight, INFINITE, 0);
     // If hitting nothing, add light contribution
@@ -277,7 +318,6 @@ ShadingResult shading(in PbrMaterial pbrMat, in HitState hit)
 }
 
 
-//-----------------------------------------------------------------------
 //-----------------------------------------------------------------------
 void main()
 {

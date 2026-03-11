@@ -455,12 +455,13 @@ void setDefaultFrameInfo(FrameInfo& frameInfo,
 	const glm::vec3& envRotation,
 	const glm::vec4& clearColor,
 	const glm::vec3& pointLightPos,
-	bool pointLightEnabled,
-	const glm::vec3& pointLightColor)
+	bool pointLightEnabled = true,
+	const glm::vec3& pointLightColor = glm::vec3(1.0f),
+	float pointLightRadius = 0.0f)
 {
 	frameInfo.envRotation = envRotation;
 	frameInfo.clearColor = clearColor;
-	frameInfo.pointLightPos = glm::vec4(pointLightPos, 0.0f);
+	frameInfo.pointLightPos = glm::vec4(pointLightPos, pointLightRadius); // w = sphere radius
 	frameInfo.pointLightColorEnabled = glm::vec4(
 		pointLightEnabled ? pointLightColor : glm::vec3(0.0f),
 		pointLightEnabled ? 1.0f : 0.0f
@@ -1730,15 +1731,15 @@ namespace nvvkhl
 			int maxDepth{ 3 };
 			bool showAxis{ false };
 			glm::vec4 clearColor{ 1.F };
-			//float envRotation{ -128.5F };
 			glm::vec3 envRotation{ -4.F, 35.5F, 121.F };
 			bool denoiseApply{ true };
 			bool denoiseFirstFrame{ true };
 			int denoiseEveryNFrames{ 10 };
-			int mode{ 0 }; // 0 = right dominant, 1 = left dominant, -1 = no reprojection
+			int mode{ 0 }; // 0 = R-dominant, 1 = L-dominant, -1 = no reprojection
 			bool pointLightEnabled{ true };
 			glm::vec3 pointLightPos{ 5.4f, 2.1f, -0.5f };        // above scene by default
 			glm::vec3 pointLightColor{ 300.0f, 300.0f, 300.0f }; 
+			float pointLightRadius{ 0.5f }; // 0 = point light(hard shadow), >0 = sphere light
 		} m_settings;
 
 	public:
@@ -1991,6 +1992,11 @@ namespace nvvkhl
 						reset |= PropertyEditor::entry(
 							"Point Light Color (W)", [&] { return ImGui::ColorEdit3("##ptColor", &m_settings.pointLightColor.x, ImGuiColorEditFlags_HDR); },
 							"Radiometric color/intensity for point light (linear)");
+						reset |= PropertyEditor::entry(
+							"Point Light Radius", [&] {
+								return ImGui::DragFloat("##ptRadius", &m_settings.pointLightRadius,
+									0.01f, 0.0f, 20.0f); },
+									"Sphere radius for soft shadow penumbra (0 = hard shadow point light)");
 
 						PropertyEditor::treePop();
 					}
@@ -2145,7 +2151,8 @@ namespace nvvkhl
 				m_settings.clearColor,
 				m_settings.pointLightPos,
 				m_settings.pointLightEnabled,
-				m_settings.pointLightColor);
+				m_settings.pointLightColor,
+				m_settings.pointLightRadius);
 
 
 			// Compute real IPD from XR eye poses (distance between left and right eye positions)
@@ -2592,8 +2599,9 @@ namespace nvvkhl
 				m_settings.clearColor,
 				m_settings.pointLightPos,
 				m_settings.pointLightEnabled,
-				m_settings.pointLightColor);
-
+				m_settings.pointLightColor,
+				m_settings.pointLightRadius);
+			
 			vkCmdUpdateBuffer(cmd, m_bFrameInfo.buffer, 0, sizeof(FrameInfo), &m_frameInfo);
 
 			m_pushConst.maxDepth = m_settings.maxDepth;
