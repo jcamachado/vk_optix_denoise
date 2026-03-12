@@ -358,56 +358,6 @@ formatFound:
 		<< width << "x" << height << std::endl;
 }
 
-XrVersion getSupportedOpenXRVersion() {
-	// Try different versions from highest to lowest
-	XrVersion versions[] = {
-		XR_MAKE_VERSION(1, 1, 0),
-		XR_MAKE_VERSION(1, 0, 34),
-		XR_MAKE_VERSION(1, 0, 33),
-		XR_MAKE_VERSION(1, 0, 32),
-		XR_MAKE_VERSION(1, 0, 31),
-		XR_MAKE_VERSION(1, 0, 30),
-		XR_MAKE_VERSION(1, 0, 29),
-		XR_MAKE_VERSION(1, 0, 28),
-		XR_MAKE_VERSION(1, 0, 27),
-		XR_MAKE_VERSION(1, 0, 26),
-		XR_MAKE_VERSION(1, 0, 25),
-		XR_MAKE_VERSION(1, 0, 24),
-		XR_MAKE_VERSION(1, 0, 23),
-		XR_MAKE_VERSION(1, 0, 22),
-		XR_MAKE_VERSION(1, 0, 21),
-		XR_MAKE_VERSION(1, 0, 20),
-	};
-
-	XrApplicationInfo testAppInfo{};
-	strcpy(testAppInfo.applicationName, "Test");
-	strcpy(testAppInfo.engineName, "Test");
-
-	for (XrVersion version : versions) {
-		testAppInfo.apiVersion = version;
-
-		XrInstanceCreateInfo testCreateInfo = { XR_TYPE_INSTANCE_CREATE_INFO };
-		testCreateInfo.applicationInfo = testAppInfo;
-		testCreateInfo.enabledExtensionCount = 0;
-		testCreateInfo.enabledExtensionNames = nullptr;
-		testCreateInfo.enabledApiLayerCount = 0;
-
-		XrInstance testInstance;
-		XrResult result = xrCreateInstance(&testCreateInfo, &testInstance);
-
-		if (result == XR_SUCCESS) {
-			std::cout << "Supported OpenXR version: "
-				<< XR_VERSION_MAJOR(version) << "."
-				<< XR_VERSION_MINOR(version) << "."
-				<< XR_VERSION_PATCH(version) << std::endl;
-			xrDestroyInstance(testInstance);
-			return version;
-		}
-	}
-
-	std::cout << "Warning: Could not determine supported OpenXR version, using 1.0.0" << std::endl;
-	return XR_MAKE_VERSION(1, 0, 0);
-}
 
 // Helper: create VkInstance through OpenXR (enable2)
 static VkInstance xrCreateVkInstance(XrInstance xrInstance, XrSystemId systemId)
@@ -569,74 +519,7 @@ static VkDevice xrCreateVkDevice(XrInstance xrInstance, XrSystemId systemId, VkP
 
 	return device;
 }
-// Add this helper function
-bool comparePhysicalDevices(VkPhysicalDevice dev1, VkPhysicalDevice dev2)
-{
-	if (dev1 == VK_NULL_HANDLE || dev2 == VK_NULL_HANDLE)
-	{
-		std::cout << "Warning: One or both physical devices are null handles" << std::endl;
-		return false;
-	}
 
-	if (dev1 == dev2)
-		return true;
-
-	// Get device properties to compare
-	VkPhysicalDeviceProperties prop1, prop2;
-	vkGetPhysicalDeviceProperties(dev1, &prop1);
-	vkGetPhysicalDeviceProperties(dev2, &prop2);
-
-	// Compare by name and device ID
-	return (strcmp(prop1.deviceName, prop2.deviceName) == 0 &&
-		prop1.deviceID == prop2.deviceID &&
-		prop1.vendorID == prop2.vendorID);
-}
-
-static std::vector<std::string> xrGetRequiredVulkanInstanceExts(XrInstance xrInstance, XrSystemId systemId)
-{
-	uint32_t len = 0;
-	PFN_xrGetVulkanInstanceExtensionsKHR pfnInstExts = nullptr;
-	xrGetInstanceProcAddr(xrInstance, "xrGetVulkanInstanceExtensionsKHR",
-		reinterpret_cast<PFN_xrVoidFunction*>(&pfnInstExts));
-	std::vector<std::string> result;
-	if (!pfnInstExts) return result;
-
-	XrResult r = pfnInstExts(xrInstance, systemId, 0, &len, nullptr);
-	if (r != XR_SUCCESS || len == 0) return result;
-
-	std::string buffer(len, '\0');
-	r = pfnInstExts(xrInstance, systemId, len, &len, buffer.data());
-	if (r != XR_SUCCESS) return result;
-
-	// Split space-delimited list
-	std::istringstream iss(buffer);
-	std::string ext;
-	while (iss >> ext) result.push_back(ext);
-	return result;
-}
-
-// Returns space-delimited list of required device extensions from the runtime
-static std::vector<std::string> xrGetRequiredVulkanDeviceExts(XrInstance xrInstance, XrSystemId systemId)
-{
-	uint32_t len = 0;
-	PFN_xrGetVulkanDeviceExtensionsKHR pfnDevExts = nullptr;
-	xrGetInstanceProcAddr(xrInstance, "xrGetVulkanDeviceExtensionsKHR",
-		reinterpret_cast<PFN_xrVoidFunction*>(&pfnDevExts));
-	std::vector<std::string> result;
-	if (!pfnDevExts) return result;
-
-	XrResult r = pfnDevExts(xrInstance, systemId, 0, &len, nullptr);
-	if (r != XR_SUCCESS || len == 0) return result;
-
-	std::string buffer(len, '\0');
-	r = pfnDevExts(xrInstance, systemId, len, &len, buffer.data());
-	if (r != XR_SUCCESS) return result;
-
-	std::istringstream iss(buffer);
-	std::string ext;
-	while (iss >> ext) result.push_back(ext);
-	return result;
-}
 
 // Add near the top (after includes, before initializeOpenXR):
 static XrResult xrGetSystemWithRetry(XrInstance instance, XrSystemId* outSystemId, XrFormFactor formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY)
@@ -709,63 +592,6 @@ void createInstanceOpenXR() {
 	}
 
 	std::cout << "OpenXR instance created successfully" << std::endl;
-}
-
-void checkVulkanDeviceForOpenXR(VkPhysicalDevice physicalDevice, VkDevice device, VkInstance instance) {
-	std::cout << "\n=== Vulkan Device Diagnostics for OpenXR ===" << std::endl;
-
-	// Check device properties
-	VkPhysicalDeviceProperties props;
-	vkGetPhysicalDeviceProperties(physicalDevice, &props);
-	std::cout << "Device: " << props.deviceName << std::endl;
-	std::cout << "Vendor ID: " << props.vendorID << std::endl;
-	std::cout << "Device ID: " << props.deviceID << std::endl;
-	std::cout << "Device Type: " << props.deviceType << std::endl;
-	std::cout << "API Version: "
-		<< VK_VERSION_MAJOR(props.apiVersion) << "."
-		<< VK_VERSION_MINOR(props.apiVersion) << "."
-		<< VK_VERSION_PATCH(props.apiVersion) << std::endl;
-
-	// Check queue families
-	uint32_t queueFamilyCount = 0;
-	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
-	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
-
-	std::cout << "\nQueue Families (" << queueFamilyCount << "):" << std::endl;
-	for (uint32_t i = 0; i < queueFamilyCount; ++i) {
-		std::cout << "  [" << i << "] Flags: ";
-		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) std::cout << "GRAPHICS ";
-		if (queueFamilies[i].queueFlags & VK_QUEUE_COMPUTE_BIT) std::cout << "COMPUTE ";
-		if (queueFamilies[i].queueFlags & VK_QUEUE_TRANSFER_BIT) std::cout << "TRANSFER ";
-		std::cout << "| Count: " << queueFamilies[i].queueCount << std::endl;
-	}
-
-	// Check for required extensions
-	uint32_t extensionCount = 0;
-	vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, nullptr);
-	std::vector<VkExtensionProperties> extensions(extensionCount);
-	vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, extensions.data());
-
-	std::cout << "\nRequired extensions for SteamVR:" << std::endl;
-	const char* requiredExts[] = {
-		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-		VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
-		VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
-		VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
-		VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME
-	};
-
-	for (const char* reqExt : requiredExts) {
-		bool found = false;
-		for (const auto& ext : extensions) {
-			if (strcmp(ext.extensionName, reqExt) == 0) {
-				found = true;
-				break;
-			}
-		}
-		std::cout << "  " << (found ? "✓" : "✗") << " " << reqExt << std::endl;
-	}
 }
 
 bool initializeOpenXR(std::shared_ptr<nvvk::Context> context) {
@@ -883,211 +709,6 @@ bool initializeOpenXR(std::shared_ptr<nvvk::Context> context) {
 	}
 }
 
-VkDevice createSteamVRCompatibleDevice(VkPhysicalDevice physicalDevice, VkInstance instance)
-{
-	std::cout << "\n=== Creating SteamVR-Compatible Vulkan Device ===" << std::endl;
-
-	// Get queue families
-	uint32_t queueFamilyCount = 0;
-	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
-	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
-
-	// Find a graphics queue family
-	uint32_t graphicsQueueFamilyIndex = UINT32_MAX;
-	for (uint32_t i = 0; i < queueFamilyCount; ++i)
-	{
-		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
-		{
-			graphicsQueueFamilyIndex = i;
-			break;
-		}
-	}
-
-	if (graphicsQueueFamilyIndex == UINT32_MAX)
-	{
-		throw std::runtime_error("No graphics queue family found");
-	}
-
-	// Create device with minimal extensions for SteamVR
-	float queuePriority = 1.0f;
-	VkDeviceQueueCreateInfo queueCreateInfo = {};
-	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	queueCreateInfo.queueFamilyIndex = graphicsQueueFamilyIndex;
-	queueCreateInfo.queueCount = 1;
-	queueCreateInfo.pQueuePriorities = &queuePriority;
-
-	// Minimal features for SteamVR
-	VkPhysicalDeviceFeatures deviceFeatures = {};
-	deviceFeatures.samplerAnisotropy = VK_TRUE;
-	deviceFeatures.fillModeNonSolid = VK_TRUE;
-
-	// SteamVR requires these extensions
-	const char* deviceExtensions[] = {
-		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-		VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
-		VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
-		VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
-		VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
-		VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
-	};
-
-	VkDeviceCreateInfo deviceCreateInfo = {};
-	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	deviceCreateInfo.queueCreateInfoCount = 1;
-	deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
-	deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
-	deviceCreateInfo.enabledExtensionCount = sizeof(deviceExtensions) / sizeof(deviceExtensions[0]);
-	deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions;
-
-	VkDevice device;
-	if (vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create SteamVR-compatible Vulkan device");
-	}
-
-	std::cout << "Created SteamVR-compatible Vulkan device" << std::endl;
-	return device;
-}
-
-std::shared_ptr<nvvk::Context> createSteamVRCompatibleContext()
-{
-	std::cout << "=== Creating SteamVR-Compatible Vulkan Context ===" << std::endl;
-
-	nvvk::ContextCreateInfo vkSetup;
-	vkSetup.apiMajor = 1;
-	vkSetup.apiMinor = 2;  // Use 1.2 for better compatibility
-
-	// SteamVR REQUIRES these extensions
-	vkSetup.addDeviceExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-	vkSetup.addDeviceExtension(VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME);
-	vkSetup.addDeviceExtension(VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME);
-
-	// For Windows
-#ifdef _WIN32
-	vkSetup.addDeviceExtension(VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME);
-	vkSetup.addDeviceExtension(VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME);
-#endif
-
-	vkSetup.addDeviceExtension(VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME);
-	vkSetup.addDeviceExtension(VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME);
-
-	// Instance extensions
-	vkSetup.instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-	vkSetup.instanceExtensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
-	vkSetup.instanceExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-
-	auto context = std::make_shared<nvvk::Context>();
-
-	try {
-		// Create instance
-		context->initInstance(vkSetup);
-
-		// Find a physical device
-		uint32_t deviceCount = 0;
-		vkEnumeratePhysicalDevices(context->m_instance, &deviceCount, nullptr);
-		std::vector<VkPhysicalDevice> devices(deviceCount);
-		vkEnumeratePhysicalDevices(context->m_instance, &deviceCount, devices.data());
-
-		if (deviceCount == 0) {
-			throw std::runtime_error("No Vulkan devices found");
-		}
-
-		// Select first discrete GPU or first available
-		VkPhysicalDevice selectedDevice = VK_NULL_HANDLE;
-		for (const auto& device : devices) {
-			VkPhysicalDeviceProperties props;
-			vkGetPhysicalDeviceProperties(device, &props);
-			std::cout << "Found device: " << props.deviceName << std::endl;
-
-			if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-				selectedDevice = device;
-				std::cout << "  -> Selected discrete GPU: " << props.deviceName << std::endl;
-				break;
-			}
-		}
-
-		if (selectedDevice == VK_NULL_HANDLE) {
-			selectedDevice = devices[0];
-			VkPhysicalDeviceProperties props;
-			vkGetPhysicalDeviceProperties(selectedDevice, &props);
-			std::cout << "  -> Using first available: " << props.deviceName << std::endl;
-		}
-
-		context->m_physicalDevice = selectedDevice;
-
-		// Create device with minimal features
-		VkPhysicalDeviceFeatures features{};
-		features.samplerAnisotropy = VK_TRUE;
-
-		// Find graphics queue family
-		uint32_t queueFamilyCount = 0;
-		vkGetPhysicalDeviceQueueFamilyProperties(context->m_physicalDevice, &queueFamilyCount, nullptr);
-		std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-		vkGetPhysicalDeviceQueueFamilyProperties(context->m_physicalDevice, &queueFamilyCount, queueFamilies.data());
-
-		uint32_t graphicsQueueFamily = UINT32_MAX;
-		for (uint32_t i = 0; i < queueFamilyCount; ++i) {
-			if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-				graphicsQueueFamily = i;
-				std::cout << "  -> Graphics queue family: " << i << " (has "
-					<< queueFamilies[i].queueCount << " queues)" << std::endl;
-				break;
-			}
-		}
-
-		if (graphicsQueueFamily == UINT32_MAX) {
-			throw std::runtime_error("No graphics queue family found");
-		}
-
-		float queuePriority = 1.0f;
-		VkDeviceQueueCreateInfo queueInfo{};
-		queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queueInfo.queueFamilyIndex = graphicsQueueFamily;
-		queueInfo.queueCount = 1;
-		queueInfo.pQueuePriorities = &queuePriority;
-
-		std::vector<const char*> deviceExtensions = {
-			VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-			VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
-			VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
-#ifdef _WIN32
-			VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME,
-			VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME,
-#endif
-			VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
-			VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME,
-		};
-
-		VkDeviceCreateInfo deviceInfo{};
-		deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		deviceInfo.queueCreateInfoCount = 1;
-		deviceInfo.pQueueCreateInfos = &queueInfo;
-		deviceInfo.pEnabledFeatures = &features;
-		deviceInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
-		deviceInfo.ppEnabledExtensionNames = deviceExtensions.data();
-
-		std::cout << "Creating Vulkan device..." << std::endl;
-		if (vkCreateDevice(context->m_physicalDevice, &deviceInfo, nullptr, &context->m_device) != VK_SUCCESS) {
-			throw std::runtime_error("Failed to create Vulkan device");
-		}
-
-		// Get queue
-		vkGetDeviceQueue(context->m_device, graphicsQueueFamily, 0, &context->m_queueGCT.queue);
-		context->m_queueGCT.familyIndex = graphicsQueueFamily;
-		context->m_queueGCT.queueIndex = 0;
-
-		std::cout << "SteamVR-compatible Vulkan context created successfully" << std::endl;
-
-	}
-	catch (const std::exception& e) {
-		std::cerr << "Failed to create Vulkan context: " << e.what() << std::endl;
-		// Don't throw here, let the caller handle it
-		return nullptr;
-	}
-
-	return context;  // MAKE SURE THIS LINE IS PRESENT!
-}
 
 void getSystemOpenXR()
 {
@@ -1104,170 +725,6 @@ void getSystemOpenXR()
 	xrGetSystemProperties(g_openXRState.instance, g_openXRState.systemId, &systemProperties);
 	std::cout << "OpenXR system properties acquired successfully" << std::endl;
 }
-
-VkPhysicalDevice getOpenXRPhysicalDevice(XrInstance xrInstance, XrSystemId xrSystemId, VkInstance vkInstance) {
-	std::cout << "=== getOpenXRPhysicalDevice ===" << std::endl;
-
-	// Use Vulkan 1.0 API for SteamVR
-	PFN_xrGetVulkanGraphicsRequirementsKHR pfnGetVulkanGraphicsRequirementsKHR = nullptr;
-	XrResult resReq = xrGetInstanceProcAddr(xrInstance, "xrGetVulkanGraphicsRequirementsKHR",
-		reinterpret_cast<PFN_xrVoidFunction*>(&pfnGetVulkanGraphicsRequirementsKHR));
-
-	if (resReq != XR_SUCCESS || !pfnGetVulkanGraphicsRequirementsKHR) {
-		std::cerr << "Vulkan 1.0 API not available!" << std::endl;
-		return VK_NULL_HANDLE;
-	}
-
-	XrGraphicsRequirementsVulkanKHR vkReq{ XR_TYPE_GRAPHICS_REQUIREMENTS_VULKAN_KHR };
-	XrResult r = pfnGetVulkanGraphicsRequirementsKHR(xrInstance, xrSystemId, &vkReq);
-	if (r != XR_SUCCESS) {
-		std::cerr << "xrGetVulkanGraphicsRequirementsKHR failed: " << r << std::endl;
-		return VK_NULL_HANDLE;
-	}
-
-	std::cout << "Using Vulkan 1.0 API for SteamVR compatibility" << std::endl;
-
-	// CORRECT: Use the actual field name from the structure definition
-	std::cout << "  minApiVersionSupported: "
-		<< XR_VERSION_MAJOR(vkReq.minApiVersionSupported) << "."
-		<< XR_VERSION_MINOR(vkReq.minApiVersionSupported) << "."
-		<< XR_VERSION_PATCH(vkReq.minApiVersionSupported) << std::endl;
-
-	// List all available Vulkan devices
-	uint32_t deviceCount = 0;
-	vkEnumeratePhysicalDevices(vkInstance, &deviceCount, nullptr);
-	std::vector<VkPhysicalDevice> devices(deviceCount);
-	vkEnumeratePhysicalDevices(vkInstance, &deviceCount, devices.data());
-
-	std::cout << "\nAvailable Vulkan physical devices (" << deviceCount << "):" << std::endl;
-
-	VkPhysicalDevice selectedDevice = VK_NULL_HANDLE;
-	const char* preferredDeviceNames[] = {
-		"NVIDIA GeForce RTX 4060",
-		"NVIDIA",
-		"GeForce",
-		"RTX",
-	};
-
-	for (uint32_t i = 0; i < deviceCount; ++i)
-	{
-		VkPhysicalDeviceProperties props;
-		vkGetPhysicalDeviceProperties(devices[i], &props);
-		std::cout << "  " << i << ": " << props.deviceName
-			<< " (Handle: " << devices[i] << ")" << std::endl;
-
-		// Prefer discrete GPUs
-		if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
-		{
-			// Check against our preferred names
-			for (const char* name : preferredDeviceNames)
-			{
-				if (strstr(props.deviceName, name) != nullptr)
-				{
-					selectedDevice = devices[i];
-					std::cout << "  -> SELECTED: " << props.deviceName << " (matches: " << name << ")" << std::endl;
-					break;
-				}
-			}
-		}
-
-		if (selectedDevice != VK_NULL_HANDLE)
-		{
-			break;
-		}
-	}
-
-	// If no device found by name, use the first discrete GPU
-	if (selectedDevice == VK_NULL_HANDLE)
-	{
-		for (uint32_t i = 0; i < deviceCount; ++i)
-		{
-			VkPhysicalDeviceProperties props;
-			vkGetPhysicalDeviceProperties(devices[i], &props);
-
-			if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
-			{
-				selectedDevice = devices[i];
-				std::cout << "  -> FALLBACK SELECTED: " << props.deviceName << " (first discrete GPU)" << std::endl;
-				break;
-			}
-		}
-	}
-
-	// fallback: 1st device
-	if (selectedDevice == VK_NULL_HANDLE && deviceCount > 0)
-	{
-		selectedDevice = devices[0];
-		VkPhysicalDeviceProperties props;
-		vkGetPhysicalDeviceProperties(selectedDevice, &props);
-		std::cout << "  -> ULTIMATE FALLBACK: " << props.deviceName << " (first available)" << std::endl;
-	}
-
-	if (selectedDevice == VK_NULL_HANDLE)
-	{
-		std::cerr << "ERROR: No suitable Vulkan device found!" << std::endl;
-		return VK_NULL_HANDLE;
-	}
-
-	// Try to get device via OpenXR VULKAN2 API (but handle failures gracefully)
-	PFN_xrGetVulkanGraphicsDevice2KHR pfnGetVulkanGraphicsDevice2KHR = nullptr;
-	xrGetInstanceProcAddr(xrInstance, "xrGetVulkanGraphicsDevice2KHR",
-		reinterpret_cast<PFN_xrVoidFunction*>(&pfnGetVulkanGraphicsDevice2KHR));
-
-	if (pfnGetVulkanGraphicsDevice2KHR)
-	{
-		XrVulkanGraphicsDeviceGetInfoKHR deviceGetInfo{ XR_TYPE_VULKAN_GRAPHICS_DEVICE_GET_INFO_KHR };
-		deviceGetInfo.systemId = xrSystemId;
-		deviceGetInfo.vulkanInstance = vkInstance;
-
-		VkPhysicalDevice xrDevice = VK_NULL_HANDLE;
-		XrResult deviceResult = pfnGetVulkanGraphicsDevice2KHR(xrInstance, &deviceGetInfo, &xrDevice);
-		std::cout << "xrGetVulkanGraphicsDevice2KHR result: " << deviceResult << std::endl;
-
-		if (deviceResult == XR_SUCCESS && xrDevice != VK_NULL_HANDLE)
-		{
-			std::cout << "  OpenXR VULKAN2 provided device: " << xrDevice << std::endl;
-
-			// Verify this device is in our list
-			bool found = false;
-			for (const auto& dev : devices)
-			{
-				if (dev == xrDevice)
-				{
-					found = true;
-					break;
-				}
-			}
-
-			if (found)
-			{
-				selectedDevice = xrDevice;
-				std::cout << "  -> Using OpenXR's device selection" << std::endl;
-			}
-			else
-			{
-				std::cout << "  WARNING: OpenXR device not in Vulkan device list!" << std::endl;
-			}
-		}
-		else
-		{
-			std::cout << "  NOTE: xrGetVulkanGraphicsDevice2KHR failed or returned null" << std::endl;
-			std::cout << "  This is common with SteamVR on Linux - using manual selection" << std::endl;
-		}
-	}
-	else
-	{
-		std::cout << "  NOTE: xrGetVulkanGraphicsDevice2KHR not available" << std::endl;
-	}
-
-	VkPhysicalDeviceProperties props;
-	vkGetPhysicalDeviceProperties(selectedDevice, &props);
-	std::cout << "\nFinal selected device: " << props.deviceName << " (Handle: " << selectedDevice << ")" << std::endl;
-
-	return selectedDevice;
-}
-
-
 
 void cleanupOpenXR()
 {
@@ -1288,424 +745,8 @@ void cleanupOpenXR()
 	}
 	std::cout << "OpenXR resources cleaned up" << std::endl;
 }
-bool isSteamVRReady()
-{
-	std::cout << "Checking if SteamVR is ready..." << std::endl;
 
-	// Check if SteamVR process is running
-	if (system("pgrep -x vrmonitor > /dev/null") != 0)
-	{
-		std::cerr << "SteamVR vrmonitor is not running!" << std::endl;
-		return false;
-	}
 
-	// Check if VR server is running
-	if (system("pgrep -x vrserver > /dev/null") != 0)
-	{
-		std::cerr << "SteamVR vrserver is not running!" << std::endl;
-		return false;
-	}
-
-	// Check if ALVR is running (if using ALVR)
-	if (system("pgrep -f alvr > /dev/null") != 0)
-	{
-		std::cerr << "ALVR is not running!" << std::endl;
-		return false;
-	}
-
-	std::cout << "SteamVR/ALVR appears to be running" << std::endl;
-	return true;
-}
-
-void verifyVrRuntime()
-{
-	std::cout << "\n=== Verifying VR Runtime ===" << std::endl;
-
-#ifdef _WIN32
-	// Windows-specific VR runtime checks
-	std::cout << "Checking for SteamVR on Windows..." << std::endl;
-
-	// Check common SteamVR installation paths
-	const char* steamPaths[] = {
-	  "C:\\Program Files (x86)\\Steam\\steamapps\\common\\SteamVR",
-	  "C:\\Program Files\\Steam\\steamapps\\common\\SteamVR",
-	  "F:\\Apps\\Steam\\steamapps\\common\\SteamVR"
-	};
-
-	bool steamVRFound = false;
-	for (const auto& path : steamPaths) {
-		DWORD attrs = GetFileAttributesA(path);
-		if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY)) {
-			steamVRFound = true;
-			std::string runtimePath = std::string(path) + "\\steamxr_win64.json";
-
-			if (GetFileAttributesA(runtimePath.c_str()) != INVALID_FILE_ATTRIBUTES) {
-				std::cout << "Found SteamVR OpenXR runtime at: " << runtimePath << std::endl;
-				_putenv_s("XR_RUNTIME_JSON", runtimePath.c_str());
-				break;
-			}
-		}
-	}
-
-	if (!steamVRFound) {
-		std::cout << "SteamVR not found in common locations." << std::endl;
-		std::cout << "Please ensure SteamVR is installed from Steam." << std::endl;
-	}
-
-#else
-	// Original Linux code
-	const char* runtime = std::getenv("XR_RUNTIME_JSON");
-	if (runtime)
-	{
-		std::cout << "Current XR_RUNTIME_JSON: " << runtime << std::endl;
-		// ... rest of Linux code
-	}
-#endif
-
-	std::cout << "VR Runtime check completed." << std::endl;
-}
-
-
-void createGraphicsBindingOpenXR(std::shared_ptr<nvvk::Context> m_context, VkPhysicalDevice xrPhysicalDevice)
-{
-	std::cout << "--Setting OPENXR graphics requirements---" << std::endl;
-
-	// Create a separate SteamVR-compatible device
-	VkDevice steamVRDevice = createSteamVRCompatibleDevice(xrPhysicalDevice, m_context->m_instance);
-
-	// Use the SteamVR-compatible device for OpenXR
-	memset(&g_openXRState.graphicsBinding, 0, sizeof(g_openXRState.graphicsBinding));
-	g_openXRState.graphicsBinding.type = XR_TYPE_GRAPHICS_BINDING_VULKAN2_KHR;
-	g_openXRState.graphicsBinding.next = nullptr;
-	g_openXRState.graphicsBinding.instance = m_context->m_instance;
-	g_openXRState.graphicsBinding.physicalDevice = xrPhysicalDevice;
-	g_openXRState.graphicsBinding.device = steamVRDevice; // Use the compatible device
-	g_openXRState.graphicsBinding.queueFamilyIndex = 0;   // Use first graphics queue family
-	g_openXRState.graphicsBinding.queueIndex = 0;
-
-	std::cout << "Using SteamVR-compatible Vulkan device for OpenXR" << std::endl;
-}
-
-void testMinimalOpenXRSession()
-{
-	std::cout << "\n=== Testing Minimal OpenXR Session ===" << std::endl;
-
-	// Create the absolute minimal Vulkan instance
-	VkApplicationInfo appInfo = {};
-	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	appInfo.pApplicationName = "MinimalTest";
-	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.pEngineName = "NoEngine";
-	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.apiVersion = VK_API_VERSION_1_0; // Use 1.0.0!
-
-	const char* extensions[] = {
-		VK_KHR_SURFACE_EXTENSION_NAME,
-  #if defined(_WIN32)
-		VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
-  #else
-		VK_KHR_XCB_SURFACE_EXTENSION_NAME,
-  #endif
-	};
-
-	VkInstanceCreateInfo instInfo = {};
-	instInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	instInfo.pApplicationInfo = &appInfo;
-	instInfo.enabledExtensionCount = 2;
-	instInfo.ppEnabledExtensionNames = extensions;
-
-	VkInstance vkInstance;
-	if (vkCreateInstance(&instInfo, nullptr, &vkInstance) != VK_SUCCESS)
-	{
-		std::cout << "Failed to create minimal Vulkan instance" << std::endl;
-		return;
-	}
-
-	// Get physical device
-	uint32_t deviceCount = 0;
-	vkEnumeratePhysicalDevices(vkInstance, &deviceCount, nullptr);
-	std::vector<VkPhysicalDevice> devices(deviceCount);
-	vkEnumeratePhysicalDevices(vkInstance, &deviceCount, devices.data());
-
-	if (deviceCount == 0)
-	{
-		std::cout << "No Vulkan devices found" << std::endl;
-		vkDestroyInstance(vkInstance, nullptr);
-		return;
-	}
-
-	VkPhysicalDevice physicalDevice = devices[0];
-
-	// Create minimal device
-	float queuePriority = 1.0f;
-	VkDeviceQueueCreateInfo queueCreateInfo = {};
-	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	queueCreateInfo.queueFamilyIndex = 0;
-	queueCreateInfo.queueCount = 1;
-	queueCreateInfo.pQueuePriorities = &queuePriority;
-
-	const char* deviceExts[] = {
-		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-	};
-
-	VkDeviceCreateInfo deviceCreateInfo = {};
-	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	deviceCreateInfo.queueCreateInfoCount = 1;
-	deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
-	deviceCreateInfo.enabledExtensionCount = 1;
-	deviceCreateInfo.ppEnabledExtensionNames = deviceExts;
-
-	VkDevice device;
-	if (vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device) != VK_SUCCESS)
-	{
-		std::cout << "Failed to create minimal Vulkan device" << std::endl;
-		vkDestroyInstance(vkInstance, nullptr);
-		return;
-	}
-
-	// Try to create OpenXR session with this minimal setup
-	XrGraphicsBindingVulkanKHR vkBinding = { XR_TYPE_GRAPHICS_BINDING_VULKAN_KHR };
-	vkBinding.instance = vkInstance;
-	vkBinding.physicalDevice = physicalDevice;
-	vkBinding.device = device;
-	vkBinding.queueFamilyIndex = 0;
-	vkBinding.queueIndex = 0;
-
-	XrSessionCreateInfo sessionInfo = { XR_TYPE_SESSION_CREATE_INFO };
-	sessionInfo.next = &vkBinding;
-	sessionInfo.systemId = g_openXRState.systemId;
-
-	XrSession testSession;
-	XrResult result = xrCreateSession(g_openXRState.instance, &sessionInfo, &testSession);
-
-	// After xrCreateSession call
-	if (result != XR_SUCCESS) {
-		std::cerr << "xrCreateSession failed with error: " << result << std::endl;
-
-		// Check for common errors
-		if (result == XR_ERROR_VALIDATION_FAILURE) {
-			std::cerr << "  - XR_ERROR_VALIDATION_FAILURE: Check your Vulkan device/queue configuration" << std::endl;
-		}
-		else if (result == XR_ERROR_GRAPHICS_DEVICE_INVALID) {
-			std::cerr << "  - XR_ERROR_GRAPHICS_DEVICE_INVALID: Vulkan device not compatible with OpenXR" << std::endl;
-		}
-		else if (result == XR_ERROR_RUNTIME_FAILURE) {
-			std::cerr << "  - XR_ERROR_RUNTIME_FAILURE: SteamVR runtime issue" << std::endl;
-		}
-	}
-
-	vkDestroyDevice(device, nullptr);
-	vkDestroyInstance(vkInstance, nullptr);
-}
-
-void createSessionXR(std::shared_ptr<nvvk::Context> m_context)
-{
-	std::cout << "\n=== Creating OpenXR Session (Minimal Approach) ===" << std::endl;
-
-	if (g_openXRState.instance == XR_NULL_HANDLE)
-		throw std::runtime_error("OpenXR instance is null");
-	if (g_openXRState.systemId == XR_NULL_SYSTEM_ID)
-		throw std::runtime_error("OpenXR system ID is null");
-
-	// Method 1: Try without graphics binding first (let OpenXR choose)
-	std::cout << "\nMethod 1: Creating session without graphics binding..." << std::endl;
-	{
-		XrSessionCreateInfo sessionInfo = { XR_TYPE_SESSION_CREATE_INFO };
-		sessionInfo.next = nullptr; // No graphics binding
-		sessionInfo.systemId = g_openXRState.systemId;
-
-		XrResult result = xrCreateSession(g_openXRState.instance, &sessionInfo, &g_openXRState.session);
-		if (result == XR_SUCCESS)
-		{
-			std::cout << "SUCCESS! OpenXR created session without explicit graphics binding" << std::endl;
-			std::cout << "This means OpenXR will handle graphics internally" << std::endl;
-			return;
-		}
-		std::cout << "Method 1 failed: " << result << std::endl;
-	}
-
-	// Method 2: Try with minimal Vulkan 1.0 binding
-	std::cout << "\nMethod 2: Creating session with minimal Vulkan 1.0 binding..." << std::endl;
-	{
-		XrGraphicsBindingVulkanKHR vkBinding = { XR_TYPE_GRAPHICS_BINDING_VULKAN_KHR };
-		vkBinding.instance = m_context->m_instance;
-		vkBinding.physicalDevice = m_context->m_physicalDevice;
-		vkBinding.device = m_context->m_device;
-		vkBinding.queueFamilyIndex = 0;
-		vkBinding.queueIndex = 0;
-
-		XrSessionCreateInfo sessionInfo = { XR_TYPE_SESSION_CREATE_INFO };
-		sessionInfo.next = &vkBinding;
-		sessionInfo.systemId = g_openXRState.systemId;
-
-		XrResult result = xrCreateSession(g_openXRState.instance, &sessionInfo, &g_openXRState.session);
-		if (result == XR_SUCCESS)
-		{
-			std::cout << "SUCCESS with Vulkan 1.0 binding!" << std::endl;
-			// Convert to Vulkan2 for consistency
-			g_openXRState.graphicsBinding.type = XR_TYPE_GRAPHICS_BINDING_VULKAN2_KHR;
-			g_openXRState.graphicsBinding.next = nullptr;
-			g_openXRState.graphicsBinding.instance = m_context->m_instance;
-			g_openXRState.graphicsBinding.physicalDevice = m_context->m_physicalDevice;
-			g_openXRState.graphicsBinding.device = m_context->m_device;
-			g_openXRState.graphicsBinding.queueFamilyIndex = 0;
-			g_openXRState.graphicsBinding.queueIndex = 0;
-			return;
-		}
-		std::cout << "Method 2 failed: " << result << std::endl;
-	}
-
-	// Method 3: Try with the exact same approach as hello_xr
-	std::cout << "\nMethod 3: Creating session using hello_xr approach..." << std::endl;
-	{
-		// This is the approach used by the official hello_xr sample
-		XrGraphicsBindingVulkanKHR vkBinding = { XR_TYPE_GRAPHICS_BINDING_VULKAN_KHR };
-		vkBinding.instance = m_context->m_instance;
-		vkBinding.physicalDevice = m_context->m_physicalDevice;
-		vkBinding.device = m_context->m_device;
-
-		// IMPORTANT: Get the queue from the device to ensure it's valid
-		VkQueue queue;
-		vkGetDeviceQueue(m_context->m_device, 0, 0, &queue);
-		(void)queue; // Use it to avoid unused variable warning
-
-		vkBinding.queueFamilyIndex = 0;
-		vkBinding.queueIndex = 0;
-
-		XrSessionCreateInfo sessionInfo = { XR_TYPE_SESSION_CREATE_INFO };
-		sessionInfo.next = &vkBinding;
-		sessionInfo.systemId = g_openXRState.systemId;
-
-		XrResult result = xrCreateSession(g_openXRState.instance, &sessionInfo, &g_openXRState.session);
-		if (result == XR_SUCCESS)
-		{
-			std::cout << "SUCCESS with hello_xr approach!" << std::endl;
-			g_openXRState.graphicsBinding.type = XR_TYPE_GRAPHICS_BINDING_VULKAN2_KHR;
-			g_openXRState.graphicsBinding.next = nullptr;
-			g_openXRState.graphicsBinding.instance = m_context->m_instance;
-			g_openXRState.graphicsBinding.physicalDevice = m_context->m_physicalDevice;
-			g_openXRState.graphicsBinding.device = m_context->m_device;
-			g_openXRState.graphicsBinding.queueFamilyIndex = 0;
-			g_openXRState.graphicsBinding.queueIndex = 0;
-			return;
-		}
-		std::cout << "Method 3 failed: " << result << std::endl;
-	}
-
-	// Method 4: Check if it's an ALVR-specific issue
-	std::cout << "\nMethod 4: Checking ALVR compatibility..." << std::endl;
-	{
-		// ALVR sometimes needs special handling
-		// Check if ALVR is running
-		if (system("pgrep -f alvr_server > /dev/null") == 0)
-		{
-			std::cout << "ALVR server detected, trying compatibility mode..." << std::endl;
-
-			// Try creating a session with a delay between attempts
-			for (int i = 0; i < 5; i++)
-			{
-				XrGraphicsBindingVulkanKHR vkBinding = { XR_TYPE_GRAPHICS_BINDING_VULKAN_KHR };
-				vkBinding.instance = m_context->m_instance;
-				vkBinding.physicalDevice = m_context->m_physicalDevice;
-				vkBinding.device = m_context->m_device;
-				vkBinding.queueFamilyIndex = 0;
-				vkBinding.queueIndex = 0;
-
-				XrSessionCreateInfo sessionInfo = { XR_TYPE_SESSION_CREATE_INFO };
-				sessionInfo.next = &vkBinding;
-				sessionInfo.systemId = g_openXRState.systemId;
-
-				XrResult result = xrCreateSession(g_openXRState.instance, &sessionInfo, &g_openXRState.session);
-				if (result == XR_SUCCESS)
-				{
-					std::cout << "SUCCESS on attempt " << (i + 1) << "!" << std::endl;
-					g_openXRState.graphicsBinding.type = XR_TYPE_GRAPHICS_BINDING_VULKAN2_KHR;
-					g_openXRState.graphicsBinding.next = nullptr;
-					g_openXRState.graphicsBinding.instance = m_context->m_instance;
-					g_openXRState.graphicsBinding.physicalDevice = m_context->m_physicalDevice;
-					g_openXRState.graphicsBinding.device = m_context->m_device;
-					g_openXRState.graphicsBinding.queueFamilyIndex = 0;
-					g_openXRState.graphicsBinding.queueIndex = 0;
-					return;
-				}
-
-				std::cout << "Attempt " << (i + 1) << " failed: " << result << std::endl;
-				if (i < 4)
-				{
-					usleep(500000); // 0.5 second delay
-				}
-			}
-		}
-	}
-
-	throw std::runtime_error("All session creation methods failed");
-}
-
-// void createSessionXR(std::shared_ptr<nvvk::Context> m_context)
-// {
-//   std::cout << "\n=== Creating OpenXR Session ===" << std::endl;
-
-//   // First, verify OpenXR instance and system
-//   if (xrInstance == XR_NULL_HANDLE)
-//   {
-//     throw std::runtime_error("OpenXR instance is null");
-//   }
-
-//   if (xrSystemId == XR_NULL_SYSTEM_ID)
-//   {
-//     throw std::runtime_error("OpenXR system ID is null");
-//   }
-
-//   std::cout << "Graphics Binding Structure:" << std::endl;
-//   std::cout << "  Type: " << graphicsBinding.type << std::endl;
-//   std::cout << "  Next: " << graphicsBinding.next << std::endl;
-//   std::cout << "  Instance: " << (void *)graphicsBinding.instance << std::endl;
-//   std::cout << "  PhysicalDevice: " << (void *)graphicsBinding.physicalDevice << std::endl;
-//   std::cout << "  Device: " << (void *)graphicsBinding.device << std::endl;
-
-//   // Try up to 3 times with delays
-//   for (int attempt = 1; attempt <= 3; attempt++)
-//   {
-//     std::cout << "\nAttempt " << attempt << " to create session..." << std::endl;
-
-//     // Re-initialize graphics binding each time
-//     XrGraphicsBindingVulkan2KHR localBinding = {
-//         .type = XR_TYPE_GRAPHICS_BINDING_VULKAN2_KHR,
-//         .next = nullptr,
-//         .instance = m_context->m_instance,
-//         .physicalDevice = m_context->m_physicalDevice,
-//         .device = m_context->m_device,
-//         .queueFamilyIndex = m_context->m_queueGCT.familyIndex,
-//         .queueIndex = 0};
-
-//     XrSessionCreateInfo sessionCreateInfo = {XR_TYPE_SESSION_CREATE_INFO};
-//     sessionCreateInfo.next = &localBinding;
-//     sessionCreateInfo.systemId = xrSystemId;
-
-//     XrResult result = xrCreateSession(xrInstance, &sessionCreateInfo, &xrSession);
-
-//     if (result == XR_SUCCESS)
-//     {
-//       std::cout << "OpenXR session created successfully on attempt " << attempt << std::endl;
-//       // Update the global binding
-//       graphicsBinding = localBinding;
-//       return;
-//     }
-
-//     std::cerr << "Attempt " << attempt << " failed: " << result << std::endl;
-
-//     if (attempt < 3)
-//     {
-//       std::cout << "Waiting 1 second before retry..." << std::endl;
-//       // Simple sleep (use usleep for microseconds)
-//       usleep(1000000); // 1 second
-//     }
-//   }
-
-//   // If we get here, all attempts failed
-//   std::cerr << "\n=== All session creation attempts failed ===" << std::endl;
-//   throw std::runtime_error("Failed to create OpenXR session after 3 attempts");
-// }
 
 namespace nvvkhl
 {
@@ -1741,6 +782,13 @@ namespace nvvkhl
 			glm::vec3 pointLightColor{ 300.0f, 300.0f, 300.0f }; 
 			float pointLightRadius{ 0.5f }; // 0 = point light(hard shadow), >0 = sphere light
 		} m_settings;
+
+
+		struct RayStatsGpu
+		{
+			uint32_t raysRPrimary{ 0 };
+			uint32_t raysLPrimary{ 0 };
+		} m_rayStatsCpu;
 
 	public:
 		OptixDenoiserEngine()
@@ -2044,6 +1092,24 @@ namespace nvvkhl
 					ImGui::Text("Denoised");
 					ImGui::Image(m_gBuffers->getDescriptorSet(eGbufDenoised), tumbnailSize);*/
 				}
+				if (ImGui::CollapsingHeader("Statistics", ImGuiTreeNodeFlags_DefaultOpen))
+				{
+					const float    fps = ImGui::GetIO().Framerate;
+					// Prefer measured GPU counters when available, otherwise show estimates
+					uint64_t displayR = m_hasMeasuredRays ? m_measuredRaysR : m_estRaysR;
+					uint64_t displayL = m_hasMeasuredRays ? m_measuredRaysL : m_estRaysL;
+					const double   totalPerSec = static_cast<double>(displayR + displayL) * fps;
+					const char* domLabel = (m_settings.mode == 1) ? "Left  (dominant)" : "Right (dominant)";
+					const char* nonDomLabel = (m_settings.mode == 1) ? "Right" : "Left ";
+
+					ImGui::Text("%-18s %.2f M rays/frame", domLabel, static_cast<double>(displayR) * 1e-6);
+					ImGui::Text("%-18s %.2f M rays/frame", nonDomLabel, static_cast<double>(displayL) * 1e-6);
+					ImGui::Separator();
+					ImGui::Text("Total/frame:       %.2f M rays", static_cast<double>(displayR + displayL) * 1e-6);
+					ImGui::Text("Throughput:        %.2f M rays/sec", totalPerSec * 1e-6);
+					ImGui::Text("                  (primary only, max estimate)");
+				}
+
 
 				ImGui::End();
 
@@ -2153,6 +1219,9 @@ namespace nvvkhl
 				m_settings.pointLightEnabled,
 				m_settings.pointLightColor,
 				m_settings.pointLightRadius);
+
+			updateRayCounters();  // must be after setDefaultFrameInfo, before vkCmdUpdateBuffer
+
 
 
 			// Compute real IPD from XR eye poses (distance between left and right eye positions)
@@ -2312,7 +1381,42 @@ namespace nvvkhl
 			m_pushConst.eyeSeparation = m_xrEyeSeparation;
 			m_pushConst.mode = m_settings.mode;
 
+			vkCmdFillBuffer(vkCmd, m_bRayStats.buffer, 0, sizeof(RayStatsGpu), 0);
+			VkBufferMemoryBarrier statsResetBarrier{ VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
+			statsResetBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			statsResetBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+			statsResetBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			statsResetBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			statsResetBarrier.buffer = m_bRayStats.buffer;
+			statsResetBarrier.offset = 0;
+			statsResetBarrier.size = sizeof(RayStatsGpu);
+
+			vkCmdPipelineBarrier(vkCmd,
+				VK_PIPELINE_STAGE_TRANSFER_BIT,
+				VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+				0, 0, nullptr, 1, &statsResetBarrier, 0, nullptr);
+
 			raytraceScene(vkCmd);
+
+			VkBufferMemoryBarrier statsWriteBarrier{ VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
+			statsWriteBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+			statsWriteBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+			statsWriteBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			statsWriteBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			statsWriteBarrier.buffer = m_bRayStats.buffer;
+			statsWriteBarrier.offset = 0;
+			statsWriteBarrier.size = sizeof(RayStatsGpu);
+
+			vkCmdPipelineBarrier(vkCmd,
+				VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+				VK_PIPELINE_STAGE_TRANSFER_BIT,
+				0, 0, nullptr, 1, &statsWriteBarrier, 0, nullptr);
+
+			VkBufferCopy copyRegion{};
+			copyRegion.srcOffset = 0;
+			copyRegion.dstOffset = 0;
+			copyRegion.size = sizeof(RayStatsGpu);
+			vkCmdCopyBuffer(vkCmd, m_bRayStats.buffer, m_bRayStatsReadback.buffer, 1, &copyRegion);
 
 
 #if defined(NVP_SUPPORTS_OPTIX9) || defined(NVP_SUPPORTS_OPTIX7)
@@ -2487,6 +1591,23 @@ namespace nvvkhl
 				vkQueueSubmit2(m_app->getQueue(0).queue, 1, &submit2, m_vrFence);
 			}
 				vkWaitForFences(m_device, 1, &m_vrFence, VK_TRUE, UINT64_MAX);
+
+				if (m_bRayStatsReadback.memHandle)
+				{
+					void* mapped = m_alloc->getMemoryAllocator()->map(m_bRayStatsReadback.memHandle);
+					if (mapped)
+					{
+						const RayStatsGpu* rs = reinterpret_cast<const RayStatsGpu*>(mapped);
+						m_rayStatsCpu = *rs;
+
+						// Save measured counters separately and mark as available for UI
+						m_measuredRaysR = static_cast<uint64_t>(m_rayStatsCpu.raysRPrimary);
+						m_measuredRaysL = static_cast<uint64_t>(m_rayStatsCpu.raysLPrimary);
+						m_hasMeasuredRays = true;
+
+						m_alloc->getMemoryAllocator()->unmap(m_bRayStatsReadback.memHandle);
+					}
+				}
 			
 			{	// Release swapchain AFTER GPU finishes
 				XrSwapchainImageReleaseInfo releaseInfo{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
@@ -2543,6 +1664,23 @@ namespace nvvkhl
 			// Update the frame only if the scene is valid
 			if (!updateFrame())
 				return;
+
+			if (m_bRayStatsReadback.memHandle)
+			{
+				void* mapped = m_alloc->getMemoryAllocator()->map(m_bRayStatsReadback.memHandle);
+				if (mapped)
+				{
+					const RayStatsGpu* rs = reinterpret_cast<const RayStatsGpu*>(mapped);
+					m_rayStatsCpu = *rs;
+
+					// Save measured counters separately for UI
+					m_measuredRaysR = static_cast<uint64_t>(m_rayStatsCpu.raysRPrimary);
+					m_measuredRaysL = static_cast<uint64_t>(m_rayStatsCpu.raysLPrimary);
+					m_hasMeasuredRays = true;
+
+					m_alloc->getMemoryAllocator()->unmap(m_bRayStatsReadback.memHandle);
+				}
+			}
 
 			// Using local command buffer for the frame
 			const CommandFrame& commandFrame = m_commandFrames[m_app->getFrameCycleIndex()];
@@ -2601,6 +1739,9 @@ namespace nvvkhl
 				m_settings.pointLightEnabled,
 				m_settings.pointLightColor,
 				m_settings.pointLightRadius);
+
+			updateRayCounters();  // must be after setDefaultFrameInfo, before vkCmdUpdateBuffer
+
 			
 			vkCmdUpdateBuffer(cmd, m_bFrameInfo.buffer, 0, sizeof(FrameInfo), &m_frameInfo);
 
@@ -2611,7 +1752,43 @@ namespace nvvkhl
 			m_pushConst.fovDegrees = CameraManip.getFov(); // Desktop FOV
 			m_pushConst.mode = m_settings.mode;
 
+			vkCmdFillBuffer(cmd, m_bRayStats.buffer, 0, sizeof(RayStatsGpu), 0);
+
+			VkBufferMemoryBarrier statsResetBarrier{ VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
+			statsResetBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			statsResetBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+			statsResetBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			statsResetBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			statsResetBarrier.buffer = m_bRayStats.buffer;
+			statsResetBarrier.offset = 0;
+			statsResetBarrier.size = sizeof(RayStatsGpu);
+
+			vkCmdPipelineBarrier(cmd,
+				VK_PIPELINE_STAGE_TRANSFER_BIT,
+				VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+				0, 0, nullptr, 1, &statsResetBarrier, 0, nullptr);
+
 			raytraceScene(cmd);
+
+			VkBufferMemoryBarrier statsWriteBarrier{ VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
+			statsWriteBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+			statsWriteBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+			statsWriteBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			statsWriteBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			statsWriteBarrier.buffer = m_bRayStats.buffer;
+			statsWriteBarrier.offset = 0;
+			statsWriteBarrier.size = sizeof(RayStatsGpu);
+
+			vkCmdPipelineBarrier(cmd,
+				VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+				VK_PIPELINE_STAGE_TRANSFER_BIT,
+				0, 0, nullptr, 1, &statsWriteBarrier, 0, nullptr);
+
+			VkBufferCopy copyRegion{};
+			copyRegion.srcOffset = 0;
+			copyRegion.dstOffset = 0;
+			copyRegion.size = sizeof(RayStatsGpu);
+			vkCmdCopyBuffer(cmd, m_bRayStats.buffer, m_bRayStatsReadback.buffer, 1, &copyRegion);
 
 #if defined(NVP_SUPPORTS_OPTIX9) || defined(NVP_SUPPORTS_OPTIX7)
 			// #OPTIX_D
@@ -2776,7 +1953,19 @@ namespace nvvkhl
 			m_bFrameInfo = m_alloc->createBuffer(sizeof(FrameInfo), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
+			m_bRayStats = m_alloc->createBuffer(
+				sizeof(RayStatsGpu),
+				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+			m_bRayStatsReadback = m_alloc->createBuffer(
+				sizeof(RayStatsGpu),
+				VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
 			m_dutil->DBG_NAME(m_bFrameInfo.buffer);
+			m_dutil->DBG_NAME(m_bRayStats.buffer);
+			m_dutil->DBG_NAME(m_bRayStatsReadback.buffer);
 			m_app->submitAndWaitTempCmdBuffer(cmd);
 		}
 
@@ -2794,6 +1983,7 @@ namespace nvvkhl
 			d->addBinding(RtxBindings::eOutNormal, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_ALL);
 			d->addBinding(RtxBindings::eOutDepth, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_ALL);
 			d->addBinding(RtxBindings::eOutDisparity, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_ALL);
+			d->addBinding(RtxBindings::eRayStats, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_ALL);
 
 			d->initLayout();
 			d->initPool(1);
@@ -2964,6 +2154,7 @@ namespace nvvkhl
 			VkDescriptorImageInfo normal_info{ {}, m_gBuffers->getColorImageView(eGBufNormal), VK_IMAGE_LAYOUT_GENERAL };
 			VkDescriptorImageInfo depth_info{ {}, m_gBuffers->getColorImageView(eGBufDepth), VK_IMAGE_LAYOUT_GENERAL };
 			VkDescriptorImageInfo discrep_info{ {}, m_gBuffers->getColorImageView(eGBufDisparity), VK_IMAGE_LAYOUT_GENERAL };
+			VkDescriptorBufferInfo rtxStats_info{ m_bRayStats.buffer, 0, VK_WHOLE_SIZE };
 
 			std::vector<VkWriteDescriptorSet> writes;
 			writes.emplace_back(d->makeWrite(0, RtxBindings::eTlas, &desc_as_info));
@@ -2973,6 +2164,7 @@ namespace nvvkhl
 			writes.emplace_back(d->makeWrite(0, RtxBindings::eOutNormal, &normal_info));
 			writes.emplace_back(d->makeWrite(0, RtxBindings::eOutDepth, &depth_info));
 			writes.emplace_back(d->makeWrite(0, RtxBindings::eOutDisparity, &discrep_info));
+			writes.emplace_back(d->makeWrite(0, RtxBindings::eRayStats, &rtxStats_info));
 
 			vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 		}
@@ -3033,6 +2225,21 @@ namespace nvvkhl
 		// To be call when renderer need to re-start
 		//
 		void resetFrame() { m_frame = -1; }
+
+		void updateRayCounters()
+		{
+			if (!m_gBuffers)
+				return;
+
+			const VkExtent2D sz = m_gBuffers->getSize();
+			const uint64_t eyeW = static_cast<uint64_t>(sz.width) / 2;
+			const uint64_t eyeH = static_cast<uint64_t>(sz.height);
+			const uint64_t spp = static_cast<uint64_t>(m_settings.maxSamples);
+
+			// Theoretical estimate (dominant + non-dominant same for now)
+			m_estRaysR = eyeW * eyeH * spp;
+			m_estRaysL = eyeW * eyeH * spp;
+		}
 
 		void windowTitle()
 		{
@@ -3266,6 +2473,8 @@ namespace nvvkhl
 		void destroyResources()
 		{
 			m_alloc->destroy(m_bFrameInfo);
+			m_alloc->destroy(m_bRayStats);
+			m_alloc->destroy(m_bRayStatsReadback);
 
 			if (m_vrFence != VK_NULL_HANDLE)
 			{
@@ -3307,6 +2516,8 @@ namespace nvvkhl
 
 		// Resources
 		nvvk::Buffer m_bFrameInfo;
+		nvvk::Buffer m_bRayStats;         // STORAGE + TRANSFER src/dst (device local)
+		nvvk::Buffer m_bRayStatsReadback; // TRANSFER dst (host visible)
 
 		// Pipeline
 		PushConstant m_pushConst{}; // Information sent to the shader
@@ -3315,6 +2526,15 @@ namespace nvvkhl
 		int m_frame{ -1 };
 		FrameInfo m_frameInfo;
 		VkFence m_vrFence = VK_NULL_HANDLE;
+
+		// Estimated (theoretical) counters computed from resolution & spp
+		uint64_t m_estRaysR{ 0 };
+		uint64_t m_estRaysL{ 0 };
+
+		// Measured counters read back from GPU
+		uint64_t m_measuredRaysR{ 0 };
+		uint64_t m_measuredRaysL{ 0 };
+		bool     m_hasMeasuredRays{ false };
 
 		std::unique_ptr<nvh::gltf::Scene> m_scene;
 		std::unique_ptr<SceneVk> m_sceneVk;
@@ -3328,6 +2548,8 @@ namespace nvvkhl
 		std::vector<uint32_t> m_solidMatNodes;
 		std::vector<uint32_t> m_blendMatNodes;
 		std::vector<uint32_t> m_allNodes;
+
+
 
 #if defined(NVP_SUPPORTS_OPTIX9) || defined(NVP_SUPPORTS_OPTIX7)
 		std::unique_ptr<DenoiserOptix> m_denoiser;

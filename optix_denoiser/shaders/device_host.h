@@ -54,12 +54,12 @@ struct FrameInfo // Total size 688 byte, 16*43
 	vec4 camPos2;       // 16 bytes (offset 544)
 	// 16 bytes vec3 + float => vec4 pad
 	vec3 envRotation;  // 12 bytes (offset 560) - NEW
-	float _pad_env;		// 4 bytes
+	float envIntensity; // 4 bytes
 	// 16 bytes
 	float maxLuminance; // 4 bytes
-	float envIntensity; // 4 bytes
 	float pointLightIntensity;  // 4 bytes
-	int nRaysEmmited;
+	int pad_0;
+	int pad_1;
 	// vec4 = 16 bytes
 	vec4 pointLightPos; // xyz = position, w = sphere radius for soft shadows (0 = hard shadow point light)
 	vec4 pointLightColorEnabled; // rgb = color, w = enable flag (>.5 = enabled) 

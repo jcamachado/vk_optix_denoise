@@ -75,6 +75,13 @@ void main()
   
   //payload.contrib = env * frameInfo.clearColor.xyz * frameInfo.envIntensity;
   //payload.contrib = env * frameInfo.clearColor.xyz;
-  payload.contrib = env * mis_weight * frameInfo.clearColor.xyz * frameInfo.envIntensity;
-  payload.hitT = INFINITE;  // Ending trace
+  // NOTE: BSDF-side MIS weight intentionally disabled.
+  // The env importance sampling PDF from hdrTexture.w is in sr^-1 (can be >> 1000 for
+  // bright spots) while bsdfPdf is ~0.1-0.3, causing powerHeuristic to return ~0 and
+  // making everything black. The NEE power heuristic in pathtrace.rchit already reduces
+  // double-counting on the light-sampling side without suppressing indirect paths.
+  // TODO: implement proper BSDF-side MIS using EnvAccel + an explicit environmentPdf()
+  //       function that normalises to the same domain as sampleData.pdf.
+  payload.contrib = env * frameInfo.clearColor.xyz * frameInfo.envIntensity;
+  payload.hitT    = INFINITE;
 }

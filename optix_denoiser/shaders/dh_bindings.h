@@ -25,7 +25,8 @@ eOutImage = 1,
 eOutAlbedo = 2,
 eOutNormal = 3,
 eOutDepth = 4,
-eOutDisparity = 5
+eOutDisparity = 5,
+eRayStats = 6
 END_BINDING();
 
 START_BINDING(DeferredBindings)

@@ -40,6 +40,11 @@ layout(set = 0, binding = eOutAlbedo) uniform mediump image2D gAlbedo;
 layout(set = 0, binding = eOutNormal) uniform mediump image2D gNormal;
 layout(set = 0, binding = eOutDepth) uniform mediump image2D gDepth;
 layout(set = 0, binding = eOutDisparity) uniform highp image2D gDisparity;
+layout(set = 0, binding = eRayStats) buffer RayStats_
+{
+  uint raysRPrimary;
+  uint raysLPrimary;
+} rayStats;
 
 layout(set = 1, binding = eFrameInfo) uniform FrameInfo_ { FrameInfo frameInfo; };
 // clang-format on
@@ -48,6 +53,7 @@ layout(push_constant) uniform RtxPushConstant_
 {
   PushConstant pc;
 };
+
 
 /*
     Choose warping mode:
@@ -118,6 +124,20 @@ void getViewMatrices(out mat4 viewInv, out mat4 projInv)
   viewInv = useDominant ? dominantViewInv : nonDomViewInv;
   projInv = useDominant ? dominantProjInv : nonDomProjInv;
 }
+/* Calculate Total screen distance in pixels
+    For a 90° FOV, screen fills about 45° of visual field per side
+    viewer_distance = (screen_width_per_eye / 2) / tan(FOV/2)
+    So pixels_per_meter = (screen_width_per_eye / 2) / (viewer_distance * tan(FOV/2))
+*/
+float getScreenDistancePixels() {
+    float fovRad = radians(fovDegrees);
+    float tanHalfFov = tan(fovRad * 0.5);
+    
+    // Use actual half-width from launch size, not hardcoded constant
+    float pixelsPerMeter = (halfWidthPixels / 2.0) / (VIEWER_DISTANCE_METERS * tanHalfFov);
+    
+    return VIEWER_DISTANCE_METERS * pixelsPerMeter;
+}
 
 //-----------------------------------------------------------------------
 // Precompute optical constants once per frame (called in main)
@@ -126,8 +146,13 @@ void precomputeOpticalConstants()
 {
   float fovRad = radians(fovDegrees);
   gTanHalfFov = tan(fovRad * 0.5);
-  gFocalLengthPixels = halfWidthPixels * 0.5 / gTanHalfFov;
-  gScreenDistancePixels = VIEWER_DISTANCE_METERS * (halfWidthPixels / 2.0) / (VIEWER_DISTANCE_METERS * gTanHalfFov);
+  gTanHalfFov = max(gTanHalfFov, 1e-4); // avoid division by (near) zero
+  gFocalLengthPixels = (halfWidthPixels * 0.5) / gTanHalfFov;
+  gFocalLengthPixels = clamp(gFocalLengthPixels, 1.0, max(halfWidthPixels * 10.0, 1000.0));
+  
+
+  //gScreenDistancePixels = VIEWER_DISTANCE_METERS * (halfWidthPixels / 2.0) / (VIEWER_DISTANCE_METERS * gTanHalfFov);
+  gScreenDistancePixels = getScreenDistancePixels();
 
   // Max comfortable parallax in pixels
   float maxAngleRad = radians(MAX_COMFORTABLE_PARALLAX_ANGLE);
@@ -149,20 +174,7 @@ ivec2 clampToViewBounds(ivec2 coord, bool targetIsLeft, int halfWidth) {
     return coord;
 }
 
-/* Calculate Total screen distance in pixels
-    For a 90° FOV, screen fills about 45° of visual field per side
-    viewer_distance = (screen_width_per_eye / 2) / tan(FOV/2)
-    So pixels_per_meter = (screen_width_per_eye / 2) / (viewer_distance * tan(FOV/2))
-*/
-float getScreenDistancePixels() {
-    float fovRad = radians(fovDegrees);
-    float tanHalfFov = tan(fovRad * 0.5);
-    
-    // Use actual half-width from launch size, not hardcoded constant
-    float pixelsPerMeter = (halfWidthPixels / 2.0) / (VIEWER_DISTANCE_METERS * tanHalfFov);
-    
-    return VIEWER_DISTANCE_METERS * pixelsPerMeter;
-}
+
 
 float calculateParallaxAngle(float parallaxPixels) {
     float screenDistancePixels = getScreenDistancePixels();
@@ -236,6 +248,13 @@ vec3 samplePixel(inout uint seed, vec2 adjustedPixelPos, bool captureDepth, out 
 
   vec3 weightAccum  = vec3(1.0, 1.0, 1.0);
   vec3 contribAccum = vec3(0.0, 0.0, 0.0);
+
+  
+  if (isLeftView)
+    atomicAdd(rayStats.raysLPrimary, 1u);
+  else
+    atomicAdd(rayStats.raysRPrimary, 1u);
+
 
   // bounces
   for(int bounce = 0; bounce < pc.maxDepth; bounce++)
@@ -374,7 +393,7 @@ float getWorldDepth(float depthValue) {
 }
 
 float calculateParallaxPixels(float depth) {
-    float worldDist = max(getWorldDepth(depth), 0.01);
+    float worldDist = max(getWorldDepth(depth), 0.2);
     return (eyeSeparation * gFocalLengthPixels) / worldDist;
 }
 
@@ -887,11 +906,12 @@ void main()
   /* --- Setup common values --- */
   vec2 screenCenter = vec2(gl_LaunchSizeEXT.x / 2.0, gl_LaunchSizeEXT.y / 2.0);
   halfWidth = int(gl_LaunchSizeEXT.x) / 2;
+  halfWidthPixels = float(halfWidth);
   radius = min(gl_LaunchSizeEXT.x/2.0, gl_LaunchSizeEXT.y) * pc.middleRadius;
   eyeSeparation = pc.eyeSeparation;
   fovDegrees = pc.fovDegrees;
-  precomputeOpticalConstants();
   maxParallaxWarp = gMaxComfortableParallaxPixels;
+  precomputeOpticalConstants();
 
   /* --- Determine view types --- */
   isLeftView = gl_LaunchIDEXT.x < halfWidth;
