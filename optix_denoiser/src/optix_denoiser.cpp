@@ -280,9 +280,9 @@ void createOpenXRSwapchain()
 		std::cout << "OpenXR recommended resolution: " << width << "x" << height << std::endl;
 
 		// Force native Meta Quest 3 resolution (per eye)
-		width = 1832;
-		height = 1920;
-		std::cout << "Forcing Meta Quest 3 native resolution: " << width << "x" << height << std::endl;
+		//width = 1832;
+		//height = 1920;
+		//std::cout << "Forcing Meta Quest 3 native resolution: " << width << "x" << height << std::endl;
 	}
 	else
 	{
@@ -868,7 +868,10 @@ namespace nvvkhl
 			// Set initial view size to XR resolution to avoid redundant resizes
 			if (m_enableXR && g_openXRState.swapchainWidth > 0)
 			{
-				m_viewSize = glm::vec2(g_openXRState.swapchainWidth, g_openXRState.swapchainHeight);
+				//m_viewSize = glm::vec2(g_openXRState.swapchainWidth, g_openXRState.swapchainHeight);
+				m_viewSize = glm::vec2(
+					static_cast<float>(g_openXRState.swapchainWidth) * 2.0f,
+					static_cast<float>(g_openXRState.swapchainHeight));
 			}
 			// Create resources
 			createCommandBuffers();
@@ -1194,9 +1197,11 @@ namespace nvvkhl
 			// Build a scene-space transform: position at sceneEye, looking toward sceneCenter
 			glm::mat4 sceneBaseMat = glm::inverse(glm::lookAt(sceneEye, sceneCenter, sceneUp));
 
-
 			// Left eye: combine scene base with XR head pose and avoid double inverse: viewInv IS leftWorld
 			glm::mat4 leftWorld = sceneBaseMat * xrPoseToMat4(views[0].pose);
+			glm::vec2 clip = CameraManip.getClipPlanes();
+			m_frameInfo.clipNear = clip.x;
+			m_frameInfo.clipFar = clip.y;
 			m_frameInfo.view = glm::inverse(leftWorld);
 			m_frameInfo.viewInv = leftWorld;                 // ✅ No extra inverse
 			m_frameInfo.proj = m_cachedLeftProj;          // ✅ Cached
@@ -1224,10 +1229,20 @@ namespace nvvkhl
 
 
 
-			// Compute real IPD from XR eye poses (distance between left and right eye positions)
+			//// Compute real IPD from XR eye poses (distance between left and right eye positions)
+			//glm::vec3 leftEyePos(views[0].pose.position.x, views[0].pose.position.y, views[0].pose.position.z);
+			//glm::vec3 rightEyePos(views[1].pose.position.x, views[1].pose.position.y, views[1].pose.position.z);
+			//m_xrEyeSeparation = glm::distance(leftEyePos, rightEyePos);
+
+			// ✅ Calculate REAL IPD from actual eye positions
 			glm::vec3 leftEyePos(views[0].pose.position.x, views[0].pose.position.y, views[0].pose.position.z);
 			glm::vec3 rightEyePos(views[1].pose.position.x, views[1].pose.position.y, views[1].pose.position.z);
 			m_xrEyeSeparation = glm::distance(leftEyePos, rightEyePos);
+
+			// ✅ Calculate REAL horizontal FOV from OpenXR (asymmetric)
+			float leftFovH = glm::degrees(views[0].fov.angleRight - views[0].fov.angleLeft);
+			float rightFovH = glm::degrees(views[1].fov.angleRight - views[1].fov.angleLeft);
+			m_xrFovDegrees = (leftFovH + rightFovH) * 0.5f; // Average for shader
 		}
 
 		// XR Raytracing render
@@ -1251,7 +1266,8 @@ namespace nvvkhl
 
 			// Ensure GBuffers match XR swapchain size
 			// Left half = left eye, Right half = right eye
-			uint32_t requiredWidth = g_openXRState.swapchainWidth;
+			//uint32_t requiredWidth = g_openXRState.swapchainWidth;
+			uint32_t requiredWidth = g_openXRState.swapchainWidth * 2;
 			uint32_t requiredHeight = g_openXRState.swapchainHeight;
 			if (m_gBuffers->getSize().width != requiredWidth ||
 				m_gBuffers->getSize().height != requiredHeight) {
@@ -1369,16 +1385,16 @@ namespace nvvkhl
 			// 5) Render offscreen — use full GPU power
 			vkCmdUpdateBuffer(vkCmd, m_bFrameInfo.buffer, 0, sizeof(FrameInfo), &m_frameInfo);
 
-			float tanLeft = tanf(views[0].fov.angleLeft);   // negative
-			float tanRight = tanf(views[0].fov.angleRight);  // positive
-			float horizontalFovRad = atanf(tanRight) - atanf(tanLeft); // total horizontal span
-			m_pushConst.fovDegrees = glm::degrees(horizontalFovRad);
+			//float tanLeft = tanf(views[0].fov.angleLeft);   // negative
+			//float tanRight = tanf(views[0].fov.angleRight);  // positive
+			//float horizontalFovRad = atanf(tanRight) - atanf(tanLeft); // total horizontal span
 
 			m_pushConst.maxDepth = m_settings.maxDepth;
 			m_pushConst.maxSamples = m_settings.maxSamples;
 			m_pushConst.frame = m_frame;
 			m_pushConst.middleRadius = m_middleRadius;
 			m_pushConst.eyeSeparation = m_xrEyeSeparation;
+			m_pushConst.fovDegrees = m_xrFovDegrees;
 			m_pushConst.mode = m_settings.mode;
 
 			vkCmdFillBuffer(vkCmd, m_bRayStats.buffer, 0, sizeof(RayStatsGpu), 0);
@@ -1716,6 +1732,10 @@ namespace nvvkhl
 
 			// Left eye
 			glm::vec2 clip = CameraManip.getClipPlanes();
+			std::cout << "Clip planes: near=" << clip.x << " far=" << clip.y << std::endl;
+
+			m_frameInfo.clipNear = clip.x; 
+			m_frameInfo.clipFar = clip.y;
 			m_frameInfo.view = glm::lookAt(eyeLeft, centerLeft, up);
 			m_frameInfo.viewInv = glm::inverse(m_frameInfo.view);
 			m_frameInfo.proj = glm::perspectiveRH_ZO(glm::radians(CameraManip.getFov()), view_aspect_ratio, clip.x, clip.y);
@@ -1916,7 +1936,7 @@ namespace nvvkhl
 				VK_FORMAT_R32G32B32A32_SFLOAT,  // Result (denoiser needs FLOAT4)
 				VK_FORMAT_R16G16B16A16_SFLOAT,  // Albedo
 				VK_FORMAT_R16G16B16A16_SFLOAT,  // Normal
-				VK_FORMAT_R16_SFLOAT,           // Depth — single channel is sufficient
+				VK_FORMAT_R32_SFLOAT,           // Depth — single channel is sufficient
 				VK_FORMAT_R8G8B8A8_UNORM,       // Disparity — debug visualization only
 				VK_FORMAT_R16G16B16A16_SFLOAT,  // Denoised
 			};
@@ -2558,6 +2578,7 @@ namespace nvvkhl
 		float m_blendFactor = 0.0f;
 		float m_middleRadius = 0.6f;
 		float m_xrEyeSeparation = 0.063f;
+		float m_xrFovDegrees = 90.0f;       // Default, overwritten by runtime
 		// m_xrProjCached and m_cachedLeftProj/m_cachedRightProj
 		glm::mat4 m_cachedLeftProj{ 1.0f };
 		glm::mat4 m_cachedRightProj{ 1.0f };

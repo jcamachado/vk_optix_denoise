@@ -58,11 +58,15 @@ struct FrameInfo // Total size 688 byte, 16*43
 	// 16 bytes
 	float maxLuminance; // 4 bytes
 	float pointLightIntensity;  // 4 bytes
-	int pad_0;
-	int pad_1;
-	// vec4 = 16 bytes
+	float pad_0;
+	float pad_1;
 	vec4 pointLightPos; // xyz = position, w = sphere radius for soft shadows (0 = hard shadow point light)
 	vec4 pointLightColorEnabled; // rgb = color, w = enable flag (>.5 = enabled) 
+	// vec4 = 16 bytes
+	float clipNear; // 4 bytes
+	float clipFar;  // 4 bytes
+	float pad_2;
+	float pad_3;
 };
 
 
