@@ -1732,7 +1732,6 @@ namespace nvvkhl
 
 			// Left eye
 			glm::vec2 clip = CameraManip.getClipPlanes();
-			std::cout << "Clip planes: near=" << clip.x << " far=" << clip.y << std::endl;
 
 			m_frameInfo.clipNear = clip.x; 
 			m_frameInfo.clipFar = clip.y;

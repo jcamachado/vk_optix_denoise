@@ -115,6 +115,9 @@ mediump float gFocalLengthPixels = 0.0;
 mediump float gScreenDistancePixels = 0.0;
 mediump float gMaxComfortableParallaxPixels = 0.0;
 
+vec2 uv;
+vec2 ndc;
+
 //-----------------------------------------------------------------------
 // Shared view matrix selection — eliminates duplicated logic
 //-----------------------------------------------------------------------
@@ -919,12 +922,19 @@ float calculateReprojectionConfidence(ivec2 coord, float depth, float parallax) 
 void main()
 {
   /* --- Setup common values --- */
-  vec2 screenCenter = vec2(gl_LaunchSizeEXT.x / 2.0, gl_LaunchSizeEXT.y / 2.0);
-  halfWidth = int(gl_LaunchSizeEXT.x) / 2;
+  vec2 screenCenter = vec2(gl_LaunchSizeEXT.x * 0.5, gl_LaunchSizeEXT.y * 0.5);
+  halfWidth = int(gl_LaunchSizeEXT.x * 0.5);
   halfWidthPixels = float(halfWidth);
-  radius = min(gl_LaunchSizeEXT.x/2.0, gl_LaunchSizeEXT.y) * pc.middleRadius;
-  eyeSeparation = pc.eyeSeparation;
   fovDegrees = pc.fovDegrees;
+  float pixelRange = min(float(halfWidth), float(gl_LaunchSizeEXT.y)); 
+  float pxToFoV    = fovDegrees / pixelRange;     // degrees per pixel
+  float midRadius = pc.middleRadius * fovDegrees / 100; // Convert from percentage of FOV to degrees
+
+  float radiusDeg  = midRadius * 0.5 * fovDegrees; // [0..1] -> [0..fovDegrees]
+  radius           = radiusDeg / pxToFoV;          // back to pixels for existing comparisons
+  
+
+  eyeSeparation = pc.eyeSeparation;
   maxParallaxWarp = gMaxComfortableParallaxPixels;
   nearDistLinear = frameInfo.clipNear;
   farDistLinear  = frameInfo.clipFar;
@@ -986,9 +996,6 @@ void main()
     otherViewCoord.x = int(gl_LaunchIDEXT.x - halfWidth);
   }
 
-  // Calculate distance from screen center for ALL pixels
-  dist = length(adjustedPixelPos.xy - screenCenter);
-  
   // Initialize random seed for ALL pixels
   uint seed = xxhash32(uvec3(adjustedPixelPos, pc.frame));
   
@@ -998,7 +1005,17 @@ void main()
   float borderThickness = 200.0;
   float parallaxPixels = 0.0;
   vec3 normal = vec3(0.0, 0.0, 1.0);
+  // Calculate distance from screen center for ALL pixels
+  float eyeLocalX = isLeftView
+    ? float(gl_LaunchIDEXT.x)
+    : float(int(gl_LaunchIDEXT.x) - halfWidth);
 
+  vec2 eyeCenter = vec2(float(halfWidth) * 0.5, float(gl_LaunchSizeEXT.y) * 0.5);
+  vec2 eyePos    = vec2(eyeLocalX, float(gl_LaunchIDEXT.y));
+
+  dist = length(eyePos - eyeCenter);
+  //dist = length(adjustedPixelPos.xy - screenCenter);
+  
   
   // Load dominant eye data if this is non-dominant view in second pass
   if (isNotDominantView && pc.passId == 1) {
@@ -1018,7 +1035,7 @@ void main()
     // Far objects (large depth) WILL be reprojected
     //if ((dist > radius && !inDisparitySkipZone && depth > 0.1) || depth > maxDepthThreshold) {
     float linearDepth = getWorldDepth(depth); // Convert to meters
-float depthThreshold = 5.0; // 5 meters threshold
+    float depthThreshold = 5.0; // 5 meters threshold
 
     if ((dist > radius && !inDisparitySkipZone && linearDepth > 0.5) || linearDepth > depthThreshold) {
         doReprojection = true;
@@ -1037,7 +1054,7 @@ float depthThreshold = 5.0; // 5 meters threshold
         // Combined transition factor
         float transitionFactor = distanceInfluence * (1.0 - depthInfluence * 0.5);
         
-        if (transitionFactor >= 0.6 || depth > maxDepthThreshold) {
+        if (transitionFactor >= 0.4 || depth > maxDepthThreshold) {
             // Full reprojection for far periphery
             reprojectPixel(0.0, otherViewCoord, depth, 0.0, parallaxPixels, 
                           dist, radius, isLeftView, borderThickness);
