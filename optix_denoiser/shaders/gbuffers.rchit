@@ -137,8 +137,7 @@ void main()
   payloadGbuf.packAlbedo = packUnorm4x8(vec4(pbrMat.baseColor, pbrMat.opacity));
   payloadGbuf.packNormal = compress_unit_vec(pbrMat.N);
   //const float farDist = 25.0f;
-  const float farDist = frameInfo.clipFar;
-  float depthNorm = clamp(gl_HitTEXT / farDist, 0.0, 1.0);
+  float depthNorm = clamp(gl_HitTEXT / frameInfo.clipFar, 0.0, 1.0);
   //payloadGbuf.packDepth = packUnorm4x8((vec4(depthNorm, depthNorm, depthNorm, 1.0)));
   payloadGbuf.packDepth = floatBitsToUint(depthNorm);
 }

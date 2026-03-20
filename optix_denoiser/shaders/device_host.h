@@ -11,6 +11,12 @@ using vec3 = glm::vec3;
 
 // TODO change small ints for uint8_t and pack more data into 32 bytes if possible
 // TODO get the number of rays per camera and display
+/* Modes Descriptions
+	-1 = right eye dominant, no reprojection, no blend, full raytracing.
+	0 = right eye dominant, reprojection on, blend repro+raytrace on. (default tests)
+	1 = left eye dominant, reprojection on, blend repro+raytrace on.
+	2 = right eye dominant, reprojection on, blend off.
+*/
 struct PushConstant // total 32 bytes
 {
   int frame;      // For RTX 4 bytes
@@ -20,21 +26,12 @@ struct PushConstant // total 32 bytes
   int instanceId; //  4 bytes
   int passId;    //  4 bytes
   float middleRadius; // optional override for reprojection radius (0 = auto) 4 bytes 
-  float eyeSeparation; // 4 bytes
-  float fovDegrees; // per eye horizontal fov in degrees 4 bytes
-  int mode; // 0 = right dominant, 1 = left dominant (default) 4 bytes 
+  float pad_0; // per eye horizontal fov in degrees 4 bytes
+  float pad_1; // 4 bytes
+  int mode; 
 };
 
 #define MAX_NB_LIGHTS 1
-
-struct AreaLight // Total size 112 bytes
-{
-	vec3 position;   // Center of the rectangle
-	vec3 u;          // Vector along one side (width)
-	vec3 v;          // Vector along the other side (height)
-	vec3 emission;   // RGB intensity (W/m^2)
-	float area;      // Precomputed area
-};
 
 // TODO size smart the types to pack more data in less space.
 // TODO Understand why doesnt seem to get blurry edges on shadows
@@ -58,8 +55,8 @@ struct FrameInfo // Total size 688 byte, 16*43
 	// 16 bytes
 	float maxLuminance; // 4 bytes
 	float pointLightIntensity;  // 4 bytes
-	float pad_0;
-	float pad_1;
+	float invClipRange;
+	float eyeSeparation;
 	vec4 pointLightPos; // xyz = position, w = sphere radius for soft shadows (0 = hard shadow point light)
 	vec4 pointLightColorEnabled; // rgb = color, w = enable flag (>.5 = enabled) 
 	// vec4 = 16 bytes
@@ -67,6 +64,19 @@ struct FrameInfo // Total size 688 byte, 16*43
 	float clipFar;  // 4 bytes
 	float pad_2;
 	float pad_3;
+
+	// Pre computed stereo optics constants
+	// 16 bytes
+	float tanHalfFov; // 4 bytes
+	float focalLengthPixels; // 4 bytes
+	float screenDistancePixels; // 4 bytes
+	float maxComfortableParallaxPixels; // 4 bytes
+	// 16 bytes
+	float reprojectionRadiusPixels; // 4 bytes
+	float halfWidthPixels;
+	float fovDegrees;
+	float fovRadians;
+
 };
 
 

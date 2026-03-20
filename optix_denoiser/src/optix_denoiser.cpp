@@ -93,6 +93,10 @@
 #include <Windows.h>
 #include <cstdlib>
 
+// CPU-side optical constants used by raygen shader
+static constexpr float HOST_MAX_COMFORTABLE_PARALLAX_ANGLE = 1.5f; // degrees
+static constexpr float HOST_VIEWER_DISTANCE = 0.5f; // meters
+
 // Minimal setenv() wrapper for MSVC. overwrite != 0 will replace existing value.
 static inline int setenv(const char* name, const char* value, int overwrite)
 {
@@ -970,10 +974,10 @@ namespace nvvkhl
 
 			bool reset{ false };
 			// Pick under mouse cursor
-			if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) || ImGui::IsKeyPressed(ImGuiKey_Space))
-			{
-				screenPicking();
-			}
+			//if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) || ImGui::IsKeyPressed(ImGuiKey_Space))
+			//{
+			//	screenPicking();
+			//}
 			if (ImGui::IsKeyPressed(ImGuiKey_M))
 			{
 				onResize(m_app->getViewportSize().width, m_app->getViewportSize().height); // Force recreation of G-Buffers
@@ -1216,14 +1220,14 @@ namespace nvvkhl
 			m_frameInfo.proj2Inv = m_cachedRightProjInv;     // ✅ Cached
 			m_frameInfo.camPos2 = glm::vec4(rightWorld[3]);
 
-
 			setDefaultFrameInfo(m_frameInfo,
 				m_settings.envRotation,
 				m_settings.clearColor,
 				m_settings.pointLightPos,
 				m_settings.pointLightEnabled,
 				m_settings.pointLightColor,
-				m_settings.pointLightRadius);
+				m_settings.pointLightRadius
+			);
 
 			updateRayCounters();  // must be after setDefaultFrameInfo, before vkCmdUpdateBuffer
 
@@ -1243,6 +1247,11 @@ namespace nvvkhl
 			float leftFovH = glm::degrees(views[0].fov.angleRight - views[0].fov.angleLeft);
 			float rightFovH = glm::degrees(views[1].fov.angleRight - views[1].fov.angleLeft);
 			m_xrFovDegrees = (leftFovH + rightFovH) * 0.5f; // Average for shader
+			m_xrFovRadians = glm::radians(m_xrFovDegrees);
+
+			const VkExtent2D frameSize = m_gBuffers->getSize();
+			presetConstShaderValues(m_frameInfo, m_xrFovDegrees, m_xrEyeSeparation, m_middleRadius, frameSize);
+
 		}
 
 		// XR Raytracing render
@@ -1393,8 +1402,6 @@ namespace nvvkhl
 			m_pushConst.maxSamples = m_settings.maxSamples;
 			m_pushConst.frame = m_frame;
 			m_pushConst.middleRadius = m_middleRadius;
-			m_pushConst.eyeSeparation = m_xrEyeSeparation;
-			m_pushConst.fovDegrees = m_xrFovDegrees;
 			m_pushConst.mode = m_settings.mode;
 
 			vkCmdFillBuffer(vkCmd, m_bRayStats.buffer, 0, sizeof(RayStatsGpu), 0);
@@ -1710,6 +1717,8 @@ namespace nvvkhl
 			// Get camera info
 			float view_aspect_ratio = (m_viewSize.x * 0.5f) / m_viewSize.y;
 			float eyeOffset = 0.032f; // Half IPD in meters (~64mm total)
+			const float desktopEyeSeparation = eyeOffset * 2.0f;
+			const VkExtent2D frameSize = m_gBuffers->getSize();
 
 			glm::vec3 eyeMid = CameraManip.getEye();
 			glm::vec3 center = CameraManip.getCenter();
@@ -1748,8 +1757,9 @@ namespace nvvkhl
 			m_frameInfo.proj2 = glm::perspectiveRH_ZO(glm::radians(CameraManip.getFov()), view_aspect_ratio, clip.x, clip.y);
 			m_frameInfo.proj2[1][1] *= -1;
 			m_frameInfo.proj2Inv = glm::inverse(m_frameInfo.proj2);
-
 			m_frameInfo.camPos2 = glm::vec4(eyeRight, 0.0f);
+
+			presetConstShaderValues(m_frameInfo, CameraManip.getFov(), desktopEyeSeparation, m_middleRadius, frameSize);
 
 			setDefaultFrameInfo(m_frameInfo,
 				m_settings.envRotation,
@@ -1768,7 +1778,6 @@ namespace nvvkhl
 			m_pushConst.maxSamples = m_settings.maxSamples;
 			m_pushConst.frame = m_frame;
 			m_pushConst.middleRadius = m_middleRadius;
-			m_pushConst.fovDegrees = CameraManip.getFov(); // Desktop FOV
 			m_pushConst.mode = m_settings.mode;
 
 			vkCmdFillBuffer(cmd, m_bRayStats.buffer, 0, sizeof(RayStatsGpu), 0);
@@ -1872,6 +1881,48 @@ namespace nvvkhl
 			submit_info.commandBuffer = cmd;
 			m_app->prependCommandBuffer(submit_info); // Prepend to the frame command buffer
 		}
+
+		/*
+			Set values that will be sent to the shader as push constants
+			and that wont change between frames, such as the number of samples or the max ray depth.
+		*/
+
+		void presetConstShaderValues(FrameInfo& fi, float fovDegrees, float eyeSeparation, float middleRadiusPct, VkExtent2D size) {
+			fi.fovDegrees = fovDegrees;
+			fi.fovRadians = glm::radians(fovDegrees);
+			fi.eyeSeparation = eyeSeparation;
+
+			const float width = static_cast<float>(size.width);
+			const float height = static_cast<float>(size.height);
+			const float halfWidth = width * 0.5f;  // per-eye width in your double-wide layout
+
+			fi.halfWidthPixels = halfWidth;
+			fi.invClipRange = (fi.clipFar > fi.clipNear) ? (1.0f / (fi.clipFar - fi.clipNear)) : 0.0f;
+
+			float tanHalf = tanf(fi.fovRadians * 0.5f);
+			if (tanHalf < 1e-4f)
+				tanHalf = 1e-4f;
+			fi.tanHalfFov = tanHalf;
+
+			fi.focalLengthPixels = (halfWidth * 0.5f) / fi.tanHalfFov;
+
+			/* Calculate Total screen distance in pixels
+				viewer_distance = (screen_width_per_eye / 2) / tan(FOV/2)
+				pixels_per_meter = (screen_width_per_eye / 2) / (viewer_distance * tan(FOV/2))
+			*/
+			const float pixelsPerMeter = (halfWidth * 0.5f) / (HOST_VIEWER_DISTANCE * fi.tanHalfFov);
+			fi.screenDistancePixels = HOST_VIEWER_DISTANCE * pixelsPerMeter;
+
+			const float maxAngleRad = glm::radians(HOST_MAX_COMFORTABLE_PARALLAX_ANGLE);
+			fi.maxComfortableParallaxPixels = 2.0f * fi.screenDistancePixels * tanf(maxAngleRad * 0.5f);
+
+			const float pixelRange = (halfWidth < height) ? halfWidth : height;
+			const float pxToFoV = (pixelRange > 1e-6f) ? (fovDegrees / pixelRange) : 0.0f;
+			const float midRadius = middleRadiusPct * fovDegrees / 100.0f;
+			const float radiusDeg = midRadius * 0.5f * fovDegrees;
+			fi.reprojectionRadiusPixels = (pxToFoV > 1e-6f) ? (radiusDeg / pxToFoV) : 0.0f;
+		}
+
 
 		void onRender(VkCommandBuffer cmd) override
 		{
@@ -2577,7 +2628,8 @@ namespace nvvkhl
 		float m_blendFactor = 0.0f;
 		float m_middleRadius = 0.6f;
 		float m_xrEyeSeparation = 0.063f;
-		float m_xrFovDegrees = 90.0f;       // Default, overwritten by runtime
+		float m_xrFovDegrees = 97.0f;       // Default, overwritten by runtime
+		float m_xrFovRadians = glm::radians(m_xrFovDegrees);
 		// m_xrProjCached and m_cachedLeftProj/m_cachedRightProj
 		glm::mat4 m_cachedLeftProj{ 1.0f };
 		glm::mat4 m_cachedRightProj{ 1.0f };
