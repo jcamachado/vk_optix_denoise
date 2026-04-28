@@ -89,6 +89,13 @@
 #include <iostream>
 #include <stdexcept>
 #include <cstring>
+
+#include <chrono>
+#include <ctime>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
+
 #ifdef _WIN32
 #include <Windows.h>
 #include <cstdlib>
@@ -785,6 +792,15 @@ namespace nvvkhl
 			glm::vec3 pointLightPos{ 5.4f, 2.1f, -0.5f };        // above scene by default
 			glm::vec3 pointLightColor{ 300.0f, 300.0f, 300.0f }; 
 			float pointLightRadius{ 0.5f }; // 0 = point light(hard shadow), >0 = sphere light
+			int doDebug = 0; // 0 = none, 1 = show reprojection, 2 = show ray count heatmap
+
+			int64_t timerMs = 0;
+			std::chrono::steady_clock::time_point sessionStart;
+			int sessionIndex = 0;
+			std::string logSessionName;
+			std::filesystem::path logFolder;
+			std::filesystem::path logFilePath;
+			std::ofstream logFile;
 		} m_settings;
 
 
@@ -806,6 +822,7 @@ namespace nvvkhl
 		};
 
 		~OptixDenoiserEngine() override = default;
+
 
 		void onAttach(nvvkhl::Application* app) override
 		{
@@ -883,6 +900,7 @@ namespace nvvkhl
 			createVulkanBuffers();
 
 			m_tonemapper->createComputePipeline();
+			startNewSession();
 		}
 
 		void onDetach() override
@@ -1072,6 +1090,7 @@ namespace nvvkhl
 					ImGui::SliderFloat("Blend", &m_blendFactor, 0.f, 1.0f);
 					ImGui::SliderFloat("Middle Radius", &m_middleRadius, 0.1f, 1.0f);
 					ImGui::SliderInt("Enable Paralax Reprojection", &m_settings.mode, -1, 2);
+					ImGui::SliderInt("debug", &m_settings.doDebug, 0, 1);
 
 					int denoised_frame = -1;
 					if (m_settings.denoiseApply)
@@ -1116,7 +1135,26 @@ namespace nvvkhl
 					ImGui::Text("Throughput:        %.2f M rays/sec", totalPerSec * 1e-6);
 					ImGui::Text("                  (primary only, max estimate)");
 				}
+				static bool showDialog = false;
 
+				if (ImGui::IsKeyPressed(ImGuiKey_Space))
+				{
+					appendSessionLogLine("space");
+				}
+
+				ImGui::Separator();
+
+
+				if (ImGui::CollapsingHeader("Setup", ImGuiTreeNodeFlags_DefaultOpen))
+				{
+					if (ImGui::Button("New Session"))
+					{
+						startNewSession();
+					}
+
+					ImGui::Text("Current session: %s", m_settings.logSessionName.c_str());
+					ImGui::Text("Timer: %lld ms", static_cast<long long>(m_settings.timerMs));
+				}
 
 				ImGui::End();
 
@@ -1149,6 +1187,7 @@ namespace nvvkhl
 				ImGui::End();
 				ImGui::PopStyleVar();
 			}
+
 		}
 
 		glm::mat4 xrPoseToMat4(const XrPosef& pose)
@@ -1403,6 +1442,7 @@ namespace nvvkhl
 			m_pushConst.frame = m_frame;
 			m_pushConst.middleRadius = m_middleRadius;
 			m_pushConst.mode = m_settings.mode;
+			m_pushConst.doDebug = m_settings.doDebug;
 
 			vkCmdFillBuffer(vkCmd, m_bRayStats.buffer, 0, sizeof(RayStatsGpu), 0);
 			VkBufferMemoryBarrier statsResetBarrier{ VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
@@ -1779,6 +1819,7 @@ namespace nvvkhl
 			m_pushConst.frame = m_frame;
 			m_pushConst.middleRadius = m_middleRadius;
 			m_pushConst.mode = m_settings.mode;
+			m_pushConst.doDebug = m_settings.doDebug;
 
 			vkCmdFillBuffer(cmd, m_bRayStats.buffer, 0, sizeof(RayStatsGpu), 0);
 
@@ -1937,9 +1978,143 @@ namespace nvvkhl
 		}
 
 	private:
+		static int getLastSessionId(const std::filesystem::path& root = std::filesystem::current_path())
+		{
+			int lastId = 0;
+
+			for (const auto& entry : std::filesystem::directory_iterator(root))
+			{
+				if (!entry.is_directory())
+					continue;
+
+				const std::string name = entry.path().filename().string();
+				if (name.rfind("log-", 0) != 0)
+					continue;
+
+				// Expected: log-0001-20240612-153000
+				const size_t secondDash = name.find('-', 4);
+				if (secondDash == std::string::npos)
+					continue;
+
+				const std::string idPart = name.substr(4, secondDash - 4);
+
+				try
+				{
+					lastId = std::max(lastId, std::stoi(idPart));
+				}
+				catch (...)
+				{
+					// Ignore malformed folders
+				}
+			}
+
+			return lastId;
+		}
+
+		/*
+		 Create a file inside a folder with name log-id-timestamp, where the id is ordered by timestamp.
+		 Inside the folder will be only 1 file with same name as folder with .txt extension
+		 For example:
+		 log-0001-20240612-153000/log-0001-20240612-153000.txt
+		 The file will contain the log of the benchmark, with the following format:
+		 Every time  the user press a certain key (for example space), a line will be written into the file.
+		 The line will contain the following information:
+		 timer value - key pressed - current mode (Left Dominant, Right Dominant, or no reprojection)
+		 for example:
+			1234567 - space - Left Dominant
+			1234568 - space - Left Dominant
+		*/
+		void startNewSession()
+		{
+			const int lastId = getLastSessionId();
+			m_settings.sessionIndex = lastId + 1;
+			m_settings.sessionStart = std::chrono::steady_clock::now();
+			m_settings.timerMs = 0;
+
+			auto now = std::chrono::system_clock::now();
+			std::time_t tt = std::chrono::system_clock::to_time_t(now);
+
+			std::tm tm{};
+#ifdef _WIN32
+			localtime_s(&tm, &tt);
+#else
+			localtime_r(&tt, &tm);
+#endif
+
+			std::ostringstream name;
+			name << "log-"
+				<< std::setw(4) << std::setfill('0') << m_settings.sessionIndex
+				<< "-"
+				<< std::put_time(&tm, "%Y%m%d-%H%M%S");
+
+			m_settings.logSessionName = name.str();
+			m_settings.logFolder = m_settings.logSessionName;
+			m_settings.logFilePath = m_settings.logFolder / (m_settings.logSessionName + ".txt");
+
+			if (m_settings.logFile.is_open())
+			{
+				m_settings.logFile.close();
+			}
+
+			std::filesystem::create_directories(m_settings.logFolder);
+			m_settings.logFile.open(m_settings.logFilePath, std::ios::out | std::ios::trunc);
+			if (m_settings.logFile.is_open())
+			{
+				m_settings.logFile << "TimerMs - Key Pressed - Mode\n";
+				m_settings.logFile.flush();
+			}
+
+			std::cout << "New session: " << m_settings.logSessionName << std::endl;
+		}
+
+		void appendSessionLogLine(const char* keyPressed)
+		{
+			if (!m_settings.logFile.is_open())
+				return;
+
+			m_settings.timerMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+				std::chrono::steady_clock::now() - m_settings.sessionStart).count();
+
+			const char* modeText = "Unknown";
+			switch (m_settings.mode)
+			{
+			case 1:  modeText = "Left Dominant"; break;
+			case 0:  modeText = "Right Dominant"; break;
+			case -1: modeText = "No Reprojection"; break;
+			}
+
+			m_settings.logFile
+				<< m_settings.timerMs << " - "
+				<< keyPressed << " - "
+				<< modeText << '\n';
+			m_settings.logFile.flush();
+		}
+
 		void createScene(const std::string& filename)
 		{
 			m_scene->load(filename);
+
+			// ------- Apply a uniform scene scale here -------
+			// Change this value to scale the whole glTF scene (e.g. 0.5 = half size, 2.0 = double size).
+			const float sceneScale = 1.0f;
+
+			// Get the root node, update its scale, and set it back.
+			tinygltf::Node rootNode = m_scene->getSceneRootNode();
+			if (rootNode.scale.size() == 3)
+			{
+				rootNode.scale[0] *= static_cast<double>(sceneScale);
+				rootNode.scale[1] *= static_cast<double>(sceneScale);
+				rootNode.scale[2] *= static_cast<double>(sceneScale);
+			}
+			else
+			{
+				rootNode.scale = { static_cast<double>(sceneScale),
+								   static_cast<double>(sceneScale),
+								   static_cast<double>(sceneScale) };
+			}
+			m_scene->setSceneRootNode(rootNode);
+			// ------- end scale tweak -------
+
 			nvvkhl::setCamera(filename, m_scene->getRenderCameras(), m_scene->getSceneBounds()); // Camera auto-scene-fitting
 			g_elemCamera->setSceneRadius(m_scene->getSceneBounds().radius());                    // Navigation help
 
@@ -2542,6 +2717,11 @@ namespace nvvkhl
 
 		void destroyResources()
 		{
+			if (m_settings.logFile.is_open())
+			{
+				m_settings.logFile.close();
+			}
+
 			m_alloc->destroy(m_bFrameInfo);
 			m_alloc->destroy(m_bRayStats);
 			m_alloc->destroy(m_bRayStatsReadback);
@@ -2807,6 +2987,8 @@ auto main(int argc, char** argv) -> int
 	// Load scene
 	//std::string scn_file = nvh::findFile(R"(media/cornellBox.gltf)", default_search_paths, true);
 	std::string scn_file = nvh::findFile(R"(media/sponza/glTF/Sponza.gltf)", default_search_paths, true);
+	//std::string scn_file = nvh::findFile(R"(media/scenes/ABeautifulGame/glTF/ABeautifulGame.gltf)", default_search_paths, true);
+
 	optixDenoiser->onFileDrop(scn_file.c_str());
 	//scn_file = nvh::findFile(R"(media/cube.gltf)", default_search_paths, true);
 	//optixDenoiser->onFileDrop(scn_file.c_str());
