@@ -138,6 +138,7 @@ void main()
   payloadGbuf.packNormal = compress_unit_vec(pbrMat.N);
   //const float farDist = 25.0f;
   float depthNorm = clamp(gl_HitTEXT / frameInfo.clipFar, 0.0, 1.0);
+  //float depthNorm = clamp((gl_HitTEXT - frameInfo.clipNear) / (frameInfo.clipFar - frameInfo.clipNear), 0.0, 1.0);
   //payloadGbuf.packDepth = packUnorm4x8((vec4(depthNorm, depthNorm, depthNorm, 1.0)));
   payloadGbuf.packDepth = floatBitsToUint(depthNorm);
 }

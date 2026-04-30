@@ -104,6 +104,13 @@
 static constexpr float HOST_MAX_COMFORTABLE_PARALLAX_ANGLE = 1.5f; // degrees
 static constexpr float HOST_VIEWER_DISTANCE = 0.5f; // meters
 
+static const char* sceneNames[] = { "Sponza", "Chess" };
+static const char* sceneFiles[] = {
+	"media/sponza/glTF/Sponza.gltf",
+	"media/scenes/ABeautifulGame/glTF/ABeautifulGame.gltf"
+};
+constexpr int sceneCount = sizeof(sceneNames) / sizeof(sceneNames[0]);
+
 // Minimal setenv() wrapper for MSVC. overwrite != 0 will replace existing value.
 static inline int setenv(const char* name, const char* value, int overwrite)
 {
@@ -427,6 +434,18 @@ void setDefaultFrameInfo(FrameInfo& frameInfo,
 		pointLightEnabled ? pointLightColor : glm::vec3(0.0f),
 		pointLightEnabled ? 1.0f : 0.0f
 	);
+}
+
+void setPointLightState(FrameInfo& frameInfo, bool enabled)
+{
+	if (enabled)
+	{
+		frameInfo.pointLightColorEnabled.w = 1.0f; // Enable light
+	}
+	else
+	{
+		frameInfo.pointLightColorEnabled.w = 0.0f; // Disable light
+	}
 }
 
 // Helper: create VkDevice through OpenXR (enable2)
@@ -801,6 +820,12 @@ namespace nvvkhl
 			std::filesystem::path logFolder;
 			std::filesystem::path logFilePath;
 			std::ofstream logFile;
+
+			int sceneIndex = 0;
+			// default camera values for the Sponza scene, will be overridden by UI
+			glm::vec3 defaultEye{ 0.0f, 1.6f, 0.0f };
+			glm::vec3 defaultCenter{ 10.0f, 1.6f, 0.0f };
+
 		} m_settings;
 
 
@@ -893,6 +918,7 @@ namespace nvvkhl
 				m_viewSize = glm::vec2(
 					static_cast<float>(g_openXRState.swapchainWidth) * 2.0f,
 					static_cast<float>(g_openXRState.swapchainHeight));
+				std::cout << "GBuffer size set to: " << m_viewSize.x << "x" << m_viewSize.y << std::endl;
 			}
 			// Create resources
 			createCommandBuffers();
@@ -979,6 +1005,45 @@ namespace nvvkhl
 				resetFrame();
 			}
 
+			resetFrame();
+		}
+		void resetCamera()
+		{
+			CameraManip.setLookat(
+				m_settings.defaultEye,
+				m_settings.defaultCenter,
+				glm::vec3(0.0f, 1.0f, 0.0f),
+				true
+			);
+		}
+
+		void changeScene(int sceneIndex)
+		{
+			std::string scn_file = nvh::findFile(sceneFiles[sceneIndex], { ".", "..", "../..", "../../.." }, true);
+			onFileDrop(scn_file.c_str());
+
+			if (strcmp(sceneNames[sceneIndex], "Chess") == 0) {
+				setPointLightState(m_frameInfo, false); 
+				m_settings.pointLightEnabled = false;
+				glm::vec4 cameraPosVec4(0.4f, 0.13f, -0.038f, 1.0f);
+				glm::vec3 cameraPos = glm::vec3(cameraPosVec4);
+				glm::vec3 center(-0.234f, 0.111f, 0.009f);
+				glm::vec3 up(0.0f, 1.0f, 0.0f);
+				CameraManip.setLookat(cameraPos, center, up, true);
+
+			}
+			else if (strcmp(sceneNames[sceneIndex], "Sponza") == 0) {
+				setPointLightState(m_frameInfo, true);
+				m_settings.pointLightEnabled = true;
+				resetCamera();
+
+			}
+			else {
+				setPointLightState(m_frameInfo, true);
+				m_settings.pointLightEnabled = true;
+				resetCamera();
+
+			}
 			resetFrame();
 		}
 
@@ -1088,9 +1153,6 @@ namespace nvvkhl
 					ImGui::Checkbox("First Frame", &m_settings.denoiseFirstFrame);
 					ImGui::SliderInt("N-frames", &m_settings.denoiseEveryNFrames, 1, 500);
 					ImGui::SliderFloat("Blend", &m_blendFactor, 0.f, 1.0f);
-					ImGui::SliderFloat("Middle Radius", &m_middleRadius, 0.1f, 1.0f);
-					ImGui::SliderInt("Enable Paralax Reprojection", &m_settings.mode, -1, 2);
-					ImGui::SliderInt("debug", &m_settings.doDebug, 0, 1);
 
 					int denoised_frame = -1;
 					if (m_settings.denoiseApply)
@@ -1117,6 +1179,15 @@ namespace nvvkhl
 					ImGui::Image(m_gBuffers->getDescriptorSet(eGBufResult), tumbnailSize);
 					ImGui::Text("Denoised");
 					ImGui::Image(m_gBuffers->getDescriptorSet(eGbufDenoised), tumbnailSize);*/
+				}
+				ImGui::SliderFloat("Middle Radius", &m_middleRadius, 0.1f, 1.0f);
+				ImGui::SliderInt("Enable Paralax Reprojection", &m_settings.mode, -1, 2);
+				ImGui::SliderInt("debug", &m_settings.doDebug, 0, 1);
+				if (ImGui::SliderFloat("Eye Separation (m)", &m_xrEyeSeparation, 0.05f, 0.075f, "%.3f")) {
+					resetFrame(); // Flush accumulation to avoid ghosting
+				}
+				if (ImGui::SliderInt("Scene", &m_settings.sceneIndex, 0, sceneCount - 1, sceneNames[m_settings.sceneIndex])) {
+					changeScene(m_settings.sceneIndex);
 				}
 				if (ImGui::CollapsingHeader("Statistics", ImGuiTreeNodeFlags_DefaultOpen))
 				{
@@ -1277,10 +1348,19 @@ namespace nvvkhl
 			//glm::vec3 rightEyePos(views[1].pose.position.x, views[1].pose.position.y, views[1].pose.position.z);
 			//m_xrEyeSeparation = glm::distance(leftEyePos, rightEyePos);
 
-			// ✅ Calculate REAL IPD from actual eye positions
+			// Calculate REAL IPD from actual eye positions
 			glm::vec3 leftEyePos(views[0].pose.position.x, views[0].pose.position.y, views[0].pose.position.z);
 			glm::vec3 rightEyePos(views[1].pose.position.x, views[1].pose.position.y, views[1].pose.position.z);
 			m_xrEyeSeparation = glm::distance(leftEyePos, rightEyePos);
+
+			static float lastIPD = 0.0f;
+			if (abs(m_xrEyeSeparation - lastIPD) > 0.001f) {
+				std::cout << "XR Eye Separation (IPD): " << m_xrEyeSeparation * 1000.0f << "mm" << std::endl;
+				lastIPD = m_xrEyeSeparation;
+			}
+
+			// Use THIS value for your reprojection calculations
+			m_frameInfo.eyeSeparation = m_xrEyeSeparation;
 
 			// ✅ Calculate REAL horizontal FOV from OpenXR (asymmetric)
 			float leftFovH = glm::degrees(views[0].fov.angleRight - views[0].fov.angleLeft);
@@ -1756,8 +1836,9 @@ namespace nvvkhl
 
 			// Get camera info
 			float view_aspect_ratio = (m_viewSize.x * 0.5f) / m_viewSize.y;
-			float eyeOffset = 0.032f; // Half IPD in meters (~64mm total)
-			const float desktopEyeSeparation = eyeOffset * 2.0f;
+			//float eyeOffset = 0.032f; // Half IPD in meters (~64mm total)
+			const float desktopEyeSeparation = m_xrEyeSeparation;
+			float eyeOffset = desktopEyeSeparation * 0.5f; // Half IPD for stereo offset
 			const VkExtent2D frameSize = m_gBuffers->getSize();
 
 			glm::vec3 eyeMid = CameraManip.getEye();
@@ -2026,6 +2107,7 @@ namespace nvvkhl
 		*/
 		void startNewSession()
 		{
+			resetFrame();
 			const int lastId = getLastSessionId();
 			m_settings.sessionIndex = lastId + 1;
 			m_settings.sessionStart = std::chrono::steady_clock::now();
