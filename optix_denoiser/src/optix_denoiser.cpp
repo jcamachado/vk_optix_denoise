@@ -958,7 +958,6 @@ namespace nvvkhl
 		}
 
 
-
 		void onUIMenu() override
 		{
 			if (m_enableXR)
@@ -1017,6 +1016,8 @@ namespace nvvkhl
 			);
 		}
 
+
+
 		void changeScene(int sceneIndex)
 		{
 			std::string scn_file = nvh::findFile(sceneFiles[sceneIndex], { ".", "..", "../..", "../../.." }, true);
@@ -1046,6 +1047,39 @@ namespace nvvkhl
 			}
 			resetFrame();
 		}
+
+
+		// This will be called to set up values previously
+		void setupHandler() {
+			// generate random number between [0 and 3]
+			int setupValue = rand() % 3;
+
+			switch (setupValue) {
+				// case 0 - Sponza scene mode -1
+			case 0:
+				m_settings.sceneIndex = 0;
+				changeScene(m_settings.sceneIndex); // Sponza
+				m_settings.mode = -1;
+				break;
+			case 1:
+				m_settings.sceneIndex = 0;
+				changeScene(m_settings.sceneIndex); // Sponza
+				m_settings.mode = 0; // R-dominant
+				break;
+			case 2:
+				m_settings.sceneIndex = 1;
+				changeScene(m_settings.sceneIndex); // Chess
+				m_settings.mode = -1;
+				break;
+			case 3:
+				m_settings.sceneIndex = 1;
+				changeScene(m_settings.sceneIndex); // Chess
+				m_settings.mode = 0; // R-dominant
+				break;
+			}
+		}
+
+
 
 		void onUIRender() override
 		{
@@ -2147,6 +2181,8 @@ namespace nvvkhl
 			}
 
 			std::cout << "New session: " << m_settings.logSessionName << std::endl;
+
+			setupHandler();
 		}
 
 		void appendSessionLogLine(const char* keyPressed)
@@ -2165,10 +2201,17 @@ namespace nvvkhl
 			case -1: modeText = "No Reprojection"; break;
 			}
 
+			const char* sceneName = "Unknown";
+#ifdef _WIN32
+			if (m_settings.sceneIndex >= 0 && m_settings.sceneIndex < sceneCount)
+				sceneName = sceneNames[m_settings.sceneIndex];
+#endif
+
 			m_settings.logFile
 				<< m_settings.timerMs << " - "
 				<< keyPressed << " - "
-				<< modeText << '\n';
+				<< modeText << " - "
+				<< sceneName << '\n';
 			m_settings.logFile.flush();
 		}
 
@@ -3068,19 +3111,19 @@ auto main(int argc, char** argv) -> int
 
 	// Load scene
 	//std::string scn_file = nvh::findFile(R"(media/cornellBox.gltf)", default_search_paths, true);
-	std::string scn_file = nvh::findFile(R"(media/sponza/glTF/Sponza.gltf)", default_search_paths, true);
+	//std::string scn_file = nvh::findFile(R"(media/sponza/glTF/Sponza.gltf)", default_search_paths, true);
 	//std::string scn_file = nvh::findFile(R"(media/scenes/ABeautifulGame/glTF/ABeautifulGame.gltf)", default_search_paths, true);
 
-	optixDenoiser->onFileDrop(scn_file.c_str());
+	//optixDenoiser->onFileDrop(scn_file.c_str());
 	//scn_file = nvh::findFile(R"(media/cube.gltf)", default_search_paths, true);
 	//optixDenoiser->onFileDrop(scn_file.c_str());
 
-	CameraManip.setLookat(
-		glm::vec3(0.0f, 1.6f, 0.0f),   // eye:    center of atrium, standing eye height
-		glm::vec3(10.0f, 1.6f, 0.0f),  // center: looking down the long axis (+X)
-		glm::vec3(0.0f, 1.0f, 0.0f),   // up
-		true                            // instant (no animation)
-	);
+	//CameraManip.setLookat(
+	//	glm::vec3(0.0f, 1.6f, 0.0f),   // eye:    center of atrium, standing eye height
+	//	glm::vec3(10.0f, 1.6f, 0.0f),  // center: looking down the long axis (+X)
+	//	glm::vec3(0.0f, 1.0f, 0.0f),   // up
+	//	true                            // instant (no animation)
+	//);
 	CameraManip.setFov(104.0f); // Estimated from Quest 3s horizontal
 
 	// Load HDR
