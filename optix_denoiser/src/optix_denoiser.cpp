@@ -279,13 +279,13 @@ void setupDebugMessenger()
 void createOpenXRSwapchain()
 {
 	// Try to get recommended resolution from OpenXR
-	uint32_t viewCount = 0;
+	uint32_t viewCount = 2;
 	xrEnumerateViewConfigurationViews(g_openXRState.instance, g_openXRState.systemId,
 		XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, 0, &viewCount, nullptr);
 
-	std::vector<XrViewConfigurationView> views(viewCount, { XR_TYPE_VIEW_CONFIGURATION_VIEW });
+	std::vector<XrViewConfigurationView> viewsConfig(viewCount, { XR_TYPE_VIEW_CONFIGURATION_VIEW });
 	xrEnumerateViewConfigurationViews(g_openXRState.instance, g_openXRState.systemId,
-		XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, viewCount, &viewCount, views.data());
+		XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, viewCount, &viewCount, viewsConfig.data());
 
 	uint32_t width = 0;
 	uint32_t height = 0;
@@ -293,8 +293,8 @@ void createOpenXRSwapchain()
 	// Meta Quest resolution  1832x1920 per eye, but steamvr uses higher values
 	if (viewCount >= 2)
 	{
-		width = views[0].recommendedImageRectWidth;
-		height = views[0].recommendedImageRectHeight;
+		width = viewsConfig[0].recommendedImageRectWidth;
+		height = viewsConfig[0].recommendedImageRectHeight;
 		std::cout << "OpenXR recommended resolution: " << width << "x" << height << std::endl;
 
 		// Force native Meta Quest 3 resolution (per eye)
@@ -805,23 +805,31 @@ namespace nvvkhl
 			glm::vec3 envRotation{ -4.F, 35.5F, 121.F };
 			bool denoiseApply{ true };
 			bool denoiseFirstFrame{ true };
-			int denoiseEveryNFrames{ 10 };
+			int denoiseEveryNFrames{ 500 };
 			int mode{ 0 }; // 0 = R-dominant, 1 = L-dominant, -1 = no reprojection
 			bool pointLightEnabled{ true };
 			glm::vec3 pointLightPos{ 5.4f, 2.1f, -0.5f };        // above scene by default
 			glm::vec3 pointLightColor{ 300.0f, 300.0f, 300.0f }; 
 			float pointLightRadius{ 0.5f }; // 0 = point light(hard shadow), >0 = sphere light
 			int doDebug = 0; // 0 = none, 1 = show reprojection, 2 = show ray count heatmap
+			bool eyeDominanceRight = true; // If true, right eye is dominant (primary), otherwise left eye is dominant
+			bool enableReprojection = true;
 
 			int64_t timerMs = 0;
 			std::chrono::steady_clock::time_point sessionStart;
 			int sessionIndex = 0;
+			bool sessionStarted{ false };        // true while the timer is running
+			bool sessionFinished{ false };       // true after timer reached duration
+			int sessionDurationMs{ 20000 };      // session length in milliseconds (adjustable)
+
 			std::string logSessionName;
 			std::filesystem::path logFolder;
 			std::filesystem::path logFilePath;
 			std::ofstream logFile;
 
-			int sceneIndex = 0;
+			int sceneSetupIdx = 0;
+
+			int sceneIdx = 0;
 			// default camera values for the Sponza scene, will be overridden by UI
 			glm::vec3 defaultEye{ 0.0f, 1.6f, 0.0f };
 			glm::vec3 defaultCenter{ 10.0f, 1.6f, 0.0f };
@@ -1024,14 +1032,14 @@ namespace nvvkhl
 			onFileDrop(scn_file.c_str());
 
 			if (strcmp(sceneNames[sceneIndex], "Chess") == 0) {
-				setPointLightState(m_frameInfo, false); 
+				setPointLightState(m_frameInfo, false);
 				m_settings.pointLightEnabled = false;
-				glm::vec4 cameraPosVec4(0.4f, 0.13f, -0.038f, 1.0f);
-				glm::vec3 cameraPos = glm::vec3(cameraPosVec4);
-				glm::vec3 center(-0.234f, 0.111f, 0.009f);
-				glm::vec3 up(0.0f, 1.0f, 0.0f);
-				CameraManip.setLookat(cameraPos, center, up, true);
 
+				// Canonical start camera for Chess (explicit values requested)
+				glm::vec3 cameraPos(-0.805f, 0.435f, 0.081f);           // Eye
+				glm::vec3 cameraCenter(14.18f, -3.122f, 1.827);       // Center
+				glm::vec3 up(0.0f, 1.0f, 0.0f);
+				CameraManip.setLookat(cameraPos, cameraCenter, up, true);
 			}
 			else if (strcmp(sceneNames[sceneIndex], "Sponza") == 0) {
 				setPointLightState(m_frameInfo, true);
@@ -1048,34 +1056,67 @@ namespace nvvkhl
 			resetFrame();
 		}
 
-
-		// This will be called to set up values previously
-		void setupHandler() {
-			// generate random number between [0 and 3]
-			int setupValue = rand() % 3;
-
-			switch (setupValue) {
-				// case 0 - Sponza scene mode -1
+		void sceneSetupHandler(int idx = -1) {
+			if (idx >= 0) {
+				m_settings.sceneSetupIdx = idx;
+			}
+			else {
+				// Randomize if no index provided
+				m_settings.sceneSetupIdx = rand() % 4;
+			}
+			idx = rand() % 4 ? -1 : idx;
+			switch (m_settings.sceneSetupIdx) {
 			case 0:
-				m_settings.sceneIndex = 0;
-				changeScene(m_settings.sceneIndex); // Sponza
-				m_settings.mode = -1;
+				m_settings.enableReprojection = false;
 				break;
 			case 1:
-				m_settings.sceneIndex = 0;
-				changeScene(m_settings.sceneIndex); // Sponza
-				m_settings.mode = 0; // R-dominant
+				m_settings.enableReprojection = true;
+				m_middleRadius = 0.3f;
 				break;
 			case 2:
-				m_settings.sceneIndex = 1;
-				changeScene(m_settings.sceneIndex); // Chess
-				m_settings.mode = -1;
+				m_settings.enableReprojection = true;
+				m_middleRadius = 0.45f;
 				break;
 			case 3:
-				m_settings.sceneIndex = 1;
-				changeScene(m_settings.sceneIndex); // Chess
-				m_settings.mode = 0; // R-dominant
+				m_settings.enableReprojection = true;
+				m_middleRadius = 0.6f;
 				break;
+			}
+
+			setModeFromReproDom();
+		}
+
+		/*
+			This is to send values correctly to the shader. Can be optimized, 
+			but it will more time I want to spend now
+
+		*/
+		void setModeFromReproDom() {
+			if (!m_settings.enableReprojection) {
+				m_settings.mode = -1; // no reprojection	
+			}
+			else {
+				if (m_settings.eyeDominanceRight) {
+					m_settings.mode = 0; // R-dominant
+				}
+				else {
+					m_settings.mode = 1; // L-dominant
+				}
+			}	
+		}
+
+		void setReproDomFromMode() {
+			if (m_settings.mode == -1) {
+				m_settings.enableReprojection = false;
+			}
+			else {
+				m_settings.enableReprojection = true;
+				if (m_settings.mode == 0) {
+					m_settings.eyeDominanceRight = true;
+				} 
+				else if(m_settings.mode == 1) {
+					m_settings.eyeDominanceRight = false;
+				}
 			}
 		}
 
@@ -1090,11 +1131,25 @@ namespace nvvkhl
 			using namespace ImGuiH;
 
 			bool reset{ false };
+			updateSessionTimer();
 			// Pick under mouse cursor
 			//if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) || ImGui::IsKeyPressed(ImGuiKey_Space))
 			//{
 			//	screenPicking();
 			//}
+			/* ----------Buttons Pressed-----------*/
+			{
+				if (m_settings.sessionStarted && !m_settings.sessionFinished)
+				{
+					if (ImGui::IsKeyPressed(ImGuiKey_Space))
+						appendSessionLogLine("space");
+					if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
+						appendSessionLogLine("Numpad1");
+					if (ImGui::IsKeyPressed(ImGuiKey_Keypad2))
+						appendSessionLogLine("Numpad2");
+				}
+			}
+
 			if (ImGui::IsKeyPressed(ImGuiKey_M))
 			{
 				onResize(m_app->getViewportSize().width, m_app->getViewportSize().height); // Force recreation of G-Buffers
@@ -1215,13 +1270,12 @@ namespace nvvkhl
 					ImGui::Image(m_gBuffers->getDescriptorSet(eGbufDenoised), tumbnailSize);*/
 				}
 				ImGui::SliderFloat("Middle Radius", &m_middleRadius, 0.1f, 1.0f);
-				ImGui::SliderInt("Enable Paralax Reprojection", &m_settings.mode, -1, 2);
 				ImGui::SliderInt("debug", &m_settings.doDebug, 0, 1);
-				if (ImGui::SliderFloat("Eye Separation (m)", &m_xrEyeSeparation, 0.05f, 0.075f, "%.3f")) {
-					resetFrame(); // Flush accumulation to avoid ghosting
-				}
-				if (ImGui::SliderInt("Scene", &m_settings.sceneIndex, 0, sceneCount - 1, sceneNames[m_settings.sceneIndex])) {
-					changeScene(m_settings.sceneIndex);
+				//if (ImGui::SliderFloat("Eye Separation (m)", &m_xrEyeSeparation, 0.05f, 0.075f, "%.3f")) {
+				//	resetFrame(); // Flush accumulation to avoid ghosting
+				//}
+				if (ImGui::SliderInt("Scene", &m_settings.sceneIdx, 0, sceneCount - 1, sceneNames[m_settings.sceneIdx])) {
+					changeScene(m_settings.sceneIdx);
 				}
 				if (ImGui::CollapsingHeader("Statistics", ImGuiTreeNodeFlags_DefaultOpen))
 				{
@@ -1241,12 +1295,33 @@ namespace nvvkhl
 					ImGui::Text("                  (primary only, max estimate)");
 				}
 				static bool showDialog = false;
-
-				if (ImGui::IsKeyPressed(ImGuiKey_Space))
+				if (ImGui::SliderInt("Modes", &m_settings.mode, -1, 2)) {
+					setReproDomFromMode();
+					reset = true; // request frame reset
+				}
+				if (ImGui::Checkbox("Enable Parallax Reprojection", &m_settings.enableReprojection))
 				{
-					appendSessionLogLine("space");
+					setModeFromReproDom();
+					reset = true; // request frame reset
 				}
 
+				// Eye dominance controls (disabled when reprojection is off)
+					// Radio buttons for explicit eye dominance
+				if (ImGui::RadioButton("Right eye dominant", m_settings.eyeDominanceRight))
+				{
+					m_settings.eyeDominanceRight = true;
+					setModeFromReproDom();
+					reset = true;
+				}
+				ImGui::SameLine();
+
+				if (ImGui::RadioButton("Left eye dominant", !m_settings.eyeDominanceRight))
+				{
+					m_settings.eyeDominanceRight = false;
+					setModeFromReproDom();
+					reset = true;
+				}
+				
 				ImGui::Separator();
 
 
@@ -1255,6 +1330,29 @@ namespace nvvkhl
 					if (ImGui::Button("New Session"))
 					{
 						startNewSession();
+					}
+					ImGui::SameLine();
+					if (ImGui::Button("Start Session"))
+					{
+						// start timer for the prepared session
+						beginSessionTimer();
+					}
+					ImGui::Separator();
+					ImGui::Text("Session Preset:");
+					if (ImGui::RadioButton("0 ", &m_settings.sceneSetupIdx, 0)) {
+						sceneSetupHandler(m_settings.sceneSetupIdx);
+					}
+					ImGui::SameLine();
+					if (ImGui::RadioButton("1 ", &m_settings.sceneSetupIdx, 1)) {
+						sceneSetupHandler(m_settings.sceneSetupIdx);
+					}
+					ImGui::SameLine();
+					if (ImGui::RadioButton("2 ", &m_settings.sceneSetupIdx, 2)) {
+						sceneSetupHandler(m_settings.sceneSetupIdx);
+					}
+					ImGui::SameLine();
+					if (ImGui::RadioButton("3 ", &m_settings.sceneSetupIdx, 3)) {
+						sceneSetupHandler(m_settings.sceneSetupIdx);
 					}
 
 					ImGui::Text("Current session: %s", m_settings.logSessionName.c_str());
@@ -1272,14 +1370,11 @@ namespace nvvkhl
 			m_tonemapper->updateComputeDescriptorSets(m_gBuffers->getDescriptorImageInfo(showDenoisedImage() ? eGbufDenoised : eGBufResult),
 				m_gBuffers->getDescriptorImageInfo(eGBufLdr));
 
-
 			{ // Rendering Viewport
 				ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0F, 0.0F));
 				ImGui::Begin("Viewport");
-
 				// Display the G-Buffer image
 				ImGui::Image(m_gBuffers->getDescriptorSet(eGBufLdr), ImGui::GetContentRegionAvail());
-
 				if (m_settings.showAxis)
 				{ // Display orientation axis at the bottom left corner of the window
 					const float axisSize = 25.F;
@@ -1288,11 +1383,89 @@ namespace nvvkhl
 					pos += ImVec2(axisSize * 1.1F, -axisSize * 1.1F) * ImGui::GetWindowDpiScale(); // Offset
 					ImGuiH::Axis(pos, CameraManip.getMatrix(), axisSize);
 				}
-
 				ImGui::End();
 				ImGui::PopStyleVar();
 			}
 
+		}
+
+		static XrPosef mat4ToXrPosef(const glm::mat4& m)
+		{
+			glm::quat q = glm::quat_cast(m);
+			XrPosef p{};
+			p.orientation.x = q.x;
+			p.orientation.y = q.y;
+			p.orientation.z = q.z;
+			p.orientation.w = q.w;
+			p.position.x = m[3][0];
+			p.position.y = m[3][1];
+			p.position.z = m[3][2];
+			return p;
+		}
+
+		// Recenter the reference space so current HMD pose becomes identity relative to the scene base.
+// Call this after you set CameraManip to the desired start camera.
+		void recenterXRToIdentity()
+		{
+			if (!m_enableXR || !g_openXRState.isInitialized() || g_openXRState.session == XR_NULL_HANDLE)
+				return;
+
+			// Wait a frame to get a current head pose
+			XrFrameWaitInfo waitInfo{ XR_TYPE_FRAME_WAIT_INFO };
+			XrFrameState frameState{ XR_TYPE_FRAME_STATE };
+			XR_CHECK(xrWaitFrame(g_openXRState.session, &waitInfo, &frameState));
+
+			XrFrameBeginInfo beginInfo{ XR_TYPE_FRAME_BEGIN_INFO };
+			XR_CHECK(xrBeginFrame(g_openXRState.session, &beginInfo));
+
+			// Locate views to read current head pose in the current reference space
+			//XrView views[2] = { {XR_TYPE_VIEW}, {XR_TYPE_VIEW} };
+			XrViewState viewState{ XR_TYPE_VIEW_STATE };
+			uint32_t viewCountOutput = 0;
+			XrViewLocateInfo viewLocate{ XR_TYPE_VIEW_LOCATE_INFO };
+			viewLocate.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
+			viewLocate.displayTime = frameState.predictedDisplayTime;
+			viewLocate.space = g_openXRState.referenceSpace;
+			XR_CHECK(xrLocateViews(g_openXRState.session, &viewLocate, &viewState, 2, &viewCountOutput, m_xrViews));
+
+			const XrViewStateFlags validMask = XR_VIEW_STATE_ORIENTATION_VALID_BIT | XR_VIEW_STATE_POSITION_VALID_BIT;
+			if (viewCountOutput < 1 || (viewState.viewStateFlags & validMask) != validMask)
+			{
+				XrFrameEndInfo endInfo{ XR_TYPE_FRAME_END_INFO };
+				endInfo.displayTime = frameState.predictedDisplayTime;
+				endInfo.environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
+				endInfo.layerCount = 0;
+				endInfo.layers = nullptr;
+				XR_CHECK(xrEndFrame(g_openXRState.session, &endInfo));
+				return;
+			}
+
+			// headMat = current HMD pose (4x4) in reference space
+			glm::mat4 headMat = xrPoseToMat4(m_xrViews[0].pose);
+
+			// We want the head to become identity -> new reference pose = inverse(headMat)
+			glm::mat4 invHead = glm::inverse(headMat);
+			XrPosef newPose = mat4ToXrPosef(invHead);
+
+			// Replace reference space with the offset so current head becomes origin
+			if (g_openXRState.referenceSpace != XR_NULL_HANDLE)
+			{
+				xrDestroySpace(g_openXRState.referenceSpace);
+				g_openXRState.referenceSpace = XR_NULL_HANDLE;
+			}
+
+			XrReferenceSpaceCreateInfo rsInfo{ XR_TYPE_REFERENCE_SPACE_CREATE_INFO };
+			rsInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL;
+			rsInfo.poseInReferenceSpace = newPose;
+			XR_CHECK(xrCreateReferenceSpace(g_openXRState.session, &rsInfo, &g_openXRState.referenceSpace));
+
+			// End the temporary frame
+			XrFrameEndInfo endInfo{ XR_TYPE_FRAME_END_INFO };
+			endInfo.displayTime = frameState.predictedDisplayTime;
+			endInfo.environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
+			endInfo.layerCount = 0;
+			endInfo.layers = nullptr;
+			XR_CHECK(xrEndFrame(g_openXRState.session, &endInfo));
 		}
 
 		glm::mat4 xrPoseToMat4(const XrPosef& pose)
@@ -1321,6 +1494,15 @@ namespace nvvkhl
 			return proj;
 		}
 
+		float calculateFov(float leftDeg, float rightDeg, float _eyeSeparation, float nearZ) {
+			// Calculate the horizontal FOV based on the left and right angles and the eye separation
+			float leftTan = tanf(glm::radians(leftDeg));
+			float rightTan = tanf(glm::radians(rightDeg));
+			float fov = atan((rightTan - leftTan) / _eyeSeparation * nearZ) * 2.0f;
+			return glm::degrees(fov);
+		}
+
+
 		void setStereoViews(XrView views[]) {
 			const float nearZ = 0.1f;
 			const float farZ = 1000.0f;
@@ -1335,8 +1517,17 @@ namespace nvvkhl
 				m_xrProjCached = true;
 			}
 
-			float horizontalFov = glm::degrees(views[0].fov.angleRight - views[0].fov.angleLeft);
-			CameraManip.setFov(horizontalFov);
+			// Calculate REAL horizontal FOV from OpenXR (asymmetric)
+			float leftFovH = glm::degrees(views[0].fov.angleRight - views[0].fov.angleLeft);
+			float rightFovH = glm::degrees(views[1].fov.angleRight - views[1].fov.angleLeft);
+			m_xrFovDegrees = (leftFovH + rightFovH) * 0.5f; // Average for shader
+			m_xrFovRadians = glm::radians(m_xrFovDegrees);
+
+			//float horizontalFov = glm::degrees(views[0].fov.angleRight - views[0].fov.angleLeft);
+			//CameraManip.setFov(horizontalFov);
+			CameraManip.setFov(leftFovH);
+
+
 
 			// Get the desktop camera transform as our scene base position
 			glm::vec3 sceneEye = CameraManip.getEye(); // Position of the Camera
@@ -1375,32 +1566,25 @@ namespace nvvkhl
 
 			updateRayCounters();  // must be after setDefaultFrameInfo, before vkCmdUpdateBuffer
 
-
-
-			//// Compute real IPD from XR eye poses (distance between left and right eye positions)
-			//glm::vec3 leftEyePos(views[0].pose.position.x, views[0].pose.position.y, views[0].pose.position.z);
-			//glm::vec3 rightEyePos(views[1].pose.position.x, views[1].pose.position.y, views[1].pose.position.z);
-			//m_xrEyeSeparation = glm::distance(leftEyePos, rightEyePos);
-
 			// Calculate REAL IPD from actual eye positions
 			glm::vec3 leftEyePos(views[0].pose.position.x, views[0].pose.position.y, views[0].pose.position.z);
 			glm::vec3 rightEyePos(views[1].pose.position.x, views[1].pose.position.y, views[1].pose.position.z);
-			m_xrEyeSeparation = glm::distance(leftEyePos, rightEyePos);
+			float newIPD = glm::distance(leftEyePos, rightEyePos);
+			if (abs(newIPD - m_hwXRIPD) > 0.0001f) {
+				m_hwXRIPD = newIPD;
+				m_xrEyeSeparation = m_hwXRIPD;
+				//std::cout << "HW(IPD): " << m_hwXRIPD * 1000.0f << "--" << std::endl;
+			}
 
 			static float lastIPD = 0.0f;
 			if (abs(m_xrEyeSeparation - lastIPD) > 0.001f) {
-				std::cout << "XR Eye Separation (IPD): " << m_xrEyeSeparation * 1000.0f << "mm" << std::endl;
+				//std::cout << "XR Eye Separation (IPD): " << m_xrEyeSeparation * 1000.0f << "--" << std::endl;
 				lastIPD = m_xrEyeSeparation;
 			}
 
 			// Use THIS value for your reprojection calculations
 			m_frameInfo.eyeSeparation = m_xrEyeSeparation;
 
-			// ✅ Calculate REAL horizontal FOV from OpenXR (asymmetric)
-			float leftFovH = glm::degrees(views[0].fov.angleRight - views[0].fov.angleLeft);
-			float rightFovH = glm::degrees(views[1].fov.angleRight - views[1].fov.angleLeft);
-			m_xrFovDegrees = (leftFovH + rightFovH) * 0.5f; // Average for shader
-			m_xrFovRadians = glm::radians(m_xrFovDegrees);
 
 			const VkExtent2D frameSize = m_gBuffers->getSize();
 			presetConstShaderValues(m_frameInfo, m_xrFovDegrees, m_xrEyeSeparation, m_middleRadius, frameSize);
@@ -1477,7 +1661,9 @@ namespace nvvkhl
 			}
 
 			// 2) Locate views
-			XrView views[2] = { {XR_TYPE_VIEW}, {XR_TYPE_VIEW} };
+			//XrView views[2] = { {XR_TYPE_VIEW}, {XR_TYPE_VIEW} };
+			//m_xrViews[0] = views[0];
+			//m_xrViews[1] = views[1];
 			uint32_t viewCountOutput = 0;
 
 			XrViewLocateInfo viewLocateInfo{ XR_TYPE_VIEW_LOCATE_INFO };
@@ -1486,7 +1672,7 @@ namespace nvvkhl
 			viewLocateInfo.space = g_openXRState.referenceSpace;
 
 			XrViewState xrViewState{ XR_TYPE_VIEW_STATE };
-			XR_CHECK(xrLocateViews(g_openXRState.session, &viewLocateInfo, &xrViewState, 2, &viewCountOutput, views));
+			XR_CHECK(xrLocateViews(g_openXRState.session, &viewLocateInfo, &xrViewState, 2, &viewCountOutput, m_xrViews));
 
 			const XrViewStateFlags validMask = XR_VIEW_STATE_ORIENTATION_VALID_BIT | XR_VIEW_STATE_POSITION_VALID_BIT;
 			if (viewCountOutput != 2 || (xrViewState.viewStateFlags & validMask) != validMask)
@@ -1504,7 +1690,7 @@ namespace nvvkhl
 
 			// Fill per-eye FrameInfo: use CameraManip as the scene base,
 			{
-				setStereoViews(views);
+				setStereoViews(m_xrViews);
 			}
 
 			// VR always resets frame to 0 — each frame is a new view, no accumulation
@@ -1797,8 +1983,8 @@ namespace nvvkhl
 			{
 				XrCompositionLayerProjectionView pv{ XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW };
 				pv.next = nullptr;
-				pv.pose = views[eye].pose;
-				pv.fov = views[eye].fov;
+				pv.pose = m_xrViews[eye].pose;
+				pv.fov = m_xrViews[eye].fov;
 
 				pv.subImage.swapchain = g_openXRState.swapchain;
 				pv.subImage.imageRect.offset = { 0, 0 };
@@ -2126,26 +2312,56 @@ namespace nvvkhl
 			return lastId;
 		}
 
+
+		void beginSessionTimer()
+		{
+			m_settings.sessionStart = std::chrono::steady_clock::now();
+			m_settings.timerMs = 0;
+			m_settings.sessionStarted = true;
+			m_settings.sessionFinished = false;
+			std::cout << "Session started\n";
+		}
+
+		void updateSessionTimer()
+		{
+			if (!m_settings.sessionStarted || m_settings.sessionFinished)
+				return;
+
+			m_settings.timerMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+				std::chrono::steady_clock::now() - m_settings.sessionStart).count();
+
+			if (m_settings.timerMs >= m_settings.sessionDurationMs)
+			{
+				// End session
+				m_settings.sessionFinished = true;
+				m_settings.sessionStarted = false;
+				appendSessionLogLine("session_end");
+				std::cout << "Session finished (timer reached)\n";
+			}
+		}
+
+
+
 		/*
-		 Create a file inside a folder with name log-id-timestamp, where the id is ordered by timestamp.
-		 Inside the folder will be only 1 file with same name as folder with .txt extension
+		 Create a .txt file in a folder with same name log-id-timestamp, where the id is ordered by timestamp.
 		 For example:
 		 log-0001-20240612-153000/log-0001-20240612-153000.txt
-		 The file will contain the log of the benchmark, with the following format:
-		 Every time  the user press a certain key (for example space), a line will be written into the file.
+		 The file will contain the log of the benchmark, adding a line everytime a key is pressed
 		 The line will contain the following information:
-		 timer value - key pressed - current mode (Left Dominant, Right Dominant, or no reprojection)
+			timer - key pressed - mode - scene name
 		 for example:
-			1234567 - space - Left Dominant
-			1234568 - space - Left Dominant
+			9364 - right_arrow - No Reprojection - Chess
 		*/
 		void startNewSession()
 		{
+			// stop any running session
+			m_settings.sessionStarted = false;
+			m_settings.sessionFinished = false;
+			m_settings.timerMs = 0;
+
 			resetFrame();
 			const int lastId = getLastSessionId();
 			m_settings.sessionIndex = lastId + 1;
-			m_settings.sessionStart = std::chrono::steady_clock::now();
-			m_settings.timerMs = 0;
 
 			auto now = std::chrono::system_clock::now();
 			std::time_t tt = std::chrono::system_clock::to_time_t(now);
@@ -2180,9 +2396,17 @@ namespace nvvkhl
 				m_settings.logFile.flush();
 			}
 
-			std::cout << "New session: " << m_settings.logSessionName << std::endl;
+			std::cout << "New session prepared: " << m_settings.logSessionName << std::endl;
 
-			setupHandler();
+			changeScene(m_settings.sceneIdx); 
+			sceneSetupHandler();
+			resetFrame();
+
+			// If XR is enabled, recenter so current HMD pose maps to the canonical CameraManip pose
+			if (m_enableXR)
+			{
+				recenterXRToIdentity();
+			}
 		}
 
 		void appendSessionLogLine(const char* keyPressed)
@@ -2201,16 +2425,25 @@ namespace nvvkhl
 			case -1: modeText = "No Reprojection"; break;
 			}
 
+			const char* circleDegree = "Unknown";
+			switch (m_settings.sceneSetupIdx) {
+			case 0: circleDegree = "Not Used"; break;
+			case 1: circleDegree = "30 degrees Circle"; break;
+			case 2: circleDegree = "45 degrees Circle"; break;
+			case 3: circleDegree = "60 degrees Circle"; break;
+			}
+
 			const char* sceneName = "Unknown";
 #ifdef _WIN32
-			if (m_settings.sceneIndex >= 0 && m_settings.sceneIndex < sceneCount)
-				sceneName = sceneNames[m_settings.sceneIndex];
+			if (m_settings.sceneIdx >= 0 && m_settings.sceneIdx < sceneCount)
+				sceneName = sceneNames[m_settings.sceneIdx];
 #endif
 
 			m_settings.logFile
 				<< m_settings.timerMs << " - "
 				<< keyPressed << " - "
 				<< modeText << " - "
+				<< circleDegree << " - "
 				<< sceneName << '\n';
 			m_settings.logFile.flush();
 		}
@@ -2932,7 +3165,11 @@ namespace nvvkhl
 #endif // NVP_SUPPORTS_OPTIX7 || NVP_SUPPORTS_OPTIX9
 		float m_blendFactor = 0.0f;
 		float m_middleRadius = 0.6f;
+		// XR related
+		// m_xrViews
+		XrView m_xrViews[2] = { { XR_TYPE_VIEW }, { XR_TYPE_VIEW } };
 		float m_xrEyeSeparation = 0.063f;
+		float m_hwXRIPD = 0.0f; 
 		float m_xrFovDegrees = 97.0f;       // Default, overwritten by runtime
 		float m_xrFovRadians = glm::radians(m_xrFovDegrees);
 		// m_xrProjCached and m_cachedLeftProj/m_cachedRightProj
