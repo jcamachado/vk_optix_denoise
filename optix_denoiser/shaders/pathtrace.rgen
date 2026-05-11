@@ -78,10 +78,6 @@ int warpMode = WARP_MODE_MULTIFREQ; // Default to simple for testing
 mediump vec4 gUnpackedAlbedo = vec4(0);
 mediump vec3 gUnpackedNormal = vec3(0);
 
-const float MAX_COMFORTABLE_PARALLAX_ANGLE = 1.5; // degrees from reference
-const float VIEWER_DISTANCE_METERS = 0.5; // 50cm typical viewing distance - make this a uniform if possible
-
-// Your screen dimensions
 bool doReprojection = false; // true if copy other view
 bool isLeftView = false;
 bool isDominantView = false;
@@ -90,10 +86,9 @@ int leftEye = 0; // Left eye index
 int rightEye = 1; // Right eye index
 int dominantEye = rightEye; // associate dominant eye to the passId = 0 (passes first) 
 
-mat4 dominantViewInv, dominantProjInv, // dominant and non-dominant eyes view matrices
-    nonDomViewInv, nonDomProjInv;
-mat4 dominantView, dominantProj,
-    nonDomView, nonDomProj;
+// dominant and non-dominant eyes view matrices
+mat4 dominantViewInv, dominantProjInv, nonDomViewInv, nonDomProjInv;
+mat4 dominantView, dominantProj, nonDomView, nonDomProj;
 int halfWidth = 0;
 mediump float dist = 0.0; // distance from center of the screen
 mediump float radius = 0.0;
@@ -873,6 +868,10 @@ void precomputeOpticalConstants()
 /* TODO: The dominant eye can be set by the user later.*/
 void main()
 {
+  if (pc.showBlackScreen == 1){
+    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 0.0, 1.0));
+    return;
+  }
   /* --- Setup common values --- */
   halfWidth = int(gl_LaunchSizeEXT.x * 0.5);
   precomputeOpticalConstants();

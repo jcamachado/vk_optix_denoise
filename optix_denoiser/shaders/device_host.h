@@ -29,6 +29,8 @@ struct PushConstant // total 32 bytes
   float pad_0; // per eye horizontal fov in degrees 4 bytes
   int doDebug; // 4 bytes 0 off - 1 on
   int mode; 
+  int showBlackScreen; // 4 bytes 0 off - 1 on
+  
 };
 
 #define MAX_NB_LIGHTS 1

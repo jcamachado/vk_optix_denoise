@@ -95,6 +95,8 @@
 #include <fstream>
 #include <iomanip>
 #include <sstream>
+#include <random>
+#include <algorithm>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -107,7 +109,8 @@ static constexpr float HOST_VIEWER_DISTANCE = 0.5f; // meters
 static const char* sceneNames[] = { "Sponza", "Chess" };
 static const char* sceneFiles[] = {
 	"media/sponza/glTF/Sponza.gltf",
-	"media/scenes/ABeautifulGame/glTF/ABeautifulGame.gltf"
+	//"media/scenes/ABeautifulGame/glTF/ABeautifulGame.gltf"
+	"media/scenes/ABeautifulGameCopy/Untitled.gltf"
 };
 constexpr int sceneCount = sizeof(sceneNames) / sizeof(sceneNames[0]);
 
@@ -166,15 +169,30 @@ struct OpenXRState
 	}
 };
 
+
+
+struct HeadsetDisplayInfo {
+	std::string headsetName;
+	float displayWidth = 0.0f;  // Single eye display width in meters
+	float displayHeight = 0.0f;
+	float pixelWidth = 0.0f;
+	float pixelHeight = 0.0f;
+	float ipd = 0.063f;
+	float fovDegrees = 88.0f;
+	float fovRadians = glm::radians(97.0f);
+};
+
+
 OpenXRState g_openXRState;
-bool m_enableXR = false;
+HeadsetDisplayInfo g_headsetDisplayInfo;
+XrView g_xrViews[2] = { { XR_TYPE_VIEW }, { XR_TYPE_VIEW } };
+
+bool g_enableXR = false;
 bool g_useVulkan2 = false;
 
 std::shared_ptr<nvvkhl::ElementCamera> g_elemCamera;
 std::shared_ptr<nvvkhl::ElementBenchmarkParameters> g_elemBenchmark;
 
-XrFrameWaitInfo frameWaitInfo = { XR_TYPE_FRAME_WAIT_INFO };
-XrFrameState frameState = { XR_TYPE_FRAME_STATE };
 std::vector<XrCompositionLayerProjectionView> projectionViews;
 // System properties
 XrSystemProperties systemProperties = { XR_TYPE_SYSTEM_PROPERTIES };
@@ -240,6 +258,8 @@ XrBool32 XRAPI_PTR debugCallback(
 	return XR_FALSE;
 }
 
+
+
 void setupDebugMessenger()
 {
 	PFN_xrCreateDebugUtilsMessengerEXT pfnCreateDebugUtilsMessengerEXT = nullptr;
@@ -275,6 +295,105 @@ void setupDebugMessenger()
 		std::cout << "Failed to create debug messenger: " << result << std::endl;
 	}
 }
+
+
+
+void updateHeadsetDisplayInfo()
+{
+	// Fill runtime-provided metadata
+	g_headsetDisplayInfo.headsetName = std::string(systemProperties.systemName);
+
+	// Default pixel size from swapchain if available
+	g_headsetDisplayInfo.pixelWidth = static_cast<float>(g_openXRState.swapchainWidth);
+	g_headsetDisplayInfo.pixelHeight = static_cast<float>(g_openXRState.swapchainHeight);
+
+	// Try to get per-eye recommended image rect from view configuration (preferred)
+	uint32_t viewCount = 0;
+	xrEnumerateViewConfigurationViews(g_openXRState.instance, g_openXRState.systemId,
+		XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, 0, &viewCount, nullptr);
+
+	if (viewCount >= 2)
+	{
+		std::vector<XrViewConfigurationView> viewsConfig(viewCount, { XR_TYPE_VIEW_CONFIGURATION_VIEW });
+		xrEnumerateViewConfigurationViews(g_openXRState.instance, g_openXRState.systemId,
+			XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, viewCount, &viewCount, viewsConfig.data());
+
+		// Use first view's recommended image rect (per-eye pixels)
+		g_headsetDisplayInfo.pixelWidth = static_cast<float>(viewsConfig[0].recommendedImageRectWidth);
+		g_headsetDisplayInfo.pixelHeight = static_cast<float>(viewsConfig[0].recommendedImageRectHeight);
+
+		// Calculate FOV from view configuration
+		float leftFovH = glm::degrees(g_xrViews[0].fov.angleRight - g_xrViews[0].fov.angleLeft);
+		float rightFovH = glm::degrees(g_xrViews[1].fov.angleRight - g_xrViews[1].fov.angleLeft);
+		g_headsetDisplayInfo.fovDegrees = (leftFovH + rightFovH) * 0.5f;
+		g_headsetDisplayInfo.fovRadians = glm::radians(g_headsetDisplayInfo.fovDegrees);
+	}
+
+	// Meta Quest 3S physical specifications
+	// Based on published specs: single LCD panel ~1832x1920 per eye
+	// Physical dimensions estimated from Quest 2/3 family
+	const std::string hn = g_headsetDisplayInfo.headsetName;
+
+	if (hn.find("Quest 3") != std::string::npos ||
+		hn.find("Quest 3S") != std::string::npos ||
+		hn.find("Meta Quest 3") != std::string::npos) {
+
+		// Meta Quest 3S specifications:
+		// - Display: Single fast-switch LCD per eye
+		// - Resolution: 1832 x 1920 pixels per eye
+		// - Physical panel size: ~2.48 inches diagonal per eye (~63mm)
+		// - Estimated physical width: ~55mm (0.055m), height: ~57mm (0.057m)
+		// - Fixed focus distance: ~1.3 meters (same as Quest 2/3 family)
+		// - Typical IPD range: 58-68mm (hardware adjustable)
+
+		g_headsetDisplayInfo.displayWidth = 0.055f;   // meters (estimated physical panel width)
+		g_headsetDisplayInfo.displayHeight = 0.057f;  // meters (estimated physical panel height)
+
+		std::cout << "Detected Meta Quest 3/3S headset" << std::endl;
+		std::cout << "  Physical panel: " << g_headsetDisplayInfo.displayWidth * 1000.0f
+			<< "mm x " << g_headsetDisplayInfo.displayHeight * 1000.0f << "mm" << std::endl;
+	}
+	else if (hn.find("Quest 2") != std::string::npos || hn.find("Oculus Quest 2") != std::string::npos) {
+		// Quest 2: similar panel size
+		g_headsetDisplayInfo.displayWidth = 0.053f;
+		g_headsetDisplayInfo.displayHeight = 0.058f;
+		std::cout << "Detected Meta Quest 2 headset" << std::endl;
+	}
+	else {
+		// Fallback: estimate from typical VR panel PPI (~600-800 PPI)
+		float estimatedPPI = 700.0f; // Conservative estimate for modern VR
+		float diagonalInches = std::sqrt(
+			g_headsetDisplayInfo.pixelWidth * g_headsetDisplayInfo.pixelWidth +
+			g_headsetDisplayInfo.pixelHeight * g_headsetDisplayInfo.pixelHeight
+		) / estimatedPPI;
+
+		float aspectRatio = g_headsetDisplayInfo.pixelWidth / g_headsetDisplayInfo.pixelHeight;
+		// diagonal² = width² + height², and width = aspectRatio * height
+		float heightInches = diagonalInches / std::sqrt(1.0f + aspectRatio * aspectRatio);
+		float widthInches = heightInches * aspectRatio;
+
+		g_headsetDisplayInfo.displayWidth = widthInches * 0.0254f;   // Convert to meters
+		g_headsetDisplayInfo.displayHeight = heightInches * 0.0254f; // Convert to meters
+
+		std::cout << "Unknown headset: " << hn << std::endl;
+		std::cout << "  Estimated panel: " << g_headsetDisplayInfo.displayWidth * 1000.0f
+			<< "mm x " << g_headsetDisplayInfo.displayHeight * 1000.0f << "mm"
+			<< " (at " << estimatedPPI << " PPI)" << std::endl;
+	}
+
+	// Log all headset info
+	std::cout << "Headset Display Info:" << std::endl;
+	std::cout << "  Name: " << g_headsetDisplayInfo.headsetName << std::endl;
+	std::cout << "  Resolution: " << g_headsetDisplayInfo.pixelWidth
+		<< "x" << g_headsetDisplayInfo.pixelHeight << std::endl;
+	std::cout << "  FOV: " << g_headsetDisplayInfo.fovDegrees << " degrees" << std::endl;
+
+	if (g_headsetDisplayInfo.displayWidth > 0.0f) {
+		float ppi = g_headsetDisplayInfo.pixelWidth / (g_headsetDisplayInfo.displayWidth / 0.0254f);
+		std::cout << "  PPI: " << ppi << std::endl;
+	}
+}
+
 
 void createOpenXRSwapchain()
 {
@@ -777,7 +896,6 @@ void cleanupOpenXR()
 }
 
 
-
 namespace nvvkhl
 {
 	//////////////////////////////////////////////////////////////////////////
@@ -798,11 +916,12 @@ namespace nvvkhl
 		struct Settings
 		{
 			int maxFrames{ 200000 };
-			int maxSamples{ 2 };
-			int maxDepth{ 3 };
+			int maxSamples{ 3 };
+			int maxDepth{ 5 };
 			bool showAxis{ false };
 			glm::vec4 clearColor{ 1.F };
-			glm::vec3 envRotation{ -4.F, 35.5F, 121.F };
+			//glm::vec3 envRotation{ -4.F, 35.5F, 121.F };
+			glm::vec3 envRotation{ 0.F };
 			bool denoiseApply{ true };
 			bool denoiseFirstFrame{ true };
 			int denoiseEveryNFrames{ 500 };
@@ -815,12 +934,28 @@ namespace nvvkhl
 			bool eyeDominanceRight = true; // If true, right eye is dominant (primary), otherwise left eye is dominant
 			bool enableReprojection = true;
 
+			struct ExperimentState {
+				bool active = false;
+				int currentScene = 0;
+				int currentSetup = 0;
+				std::chrono::steady_clock::time_point currentCaseStart;
+				std::chrono::steady_clock::time_point blackScreenStart;
+				bool isBlackScreen = false;
+				int blackScreenDurationMs = 1000;  // 1 second black screen
+				int caseDurationMs = 15000;         // 15 seconds per case
+				bool experimentComplete = false;
+				bool firstCaseStarted = false;
+
+				// For random ordering
+				std::vector<int> shuffledSetups;    // Randomized order of setups
+				int shuffledIndex = 0;              // Current position in shuffled order
+			} experiment;
+
 			int64_t timerMs = 0;
 			std::chrono::steady_clock::time_point sessionStart;
 			int sessionIndex = 0;
 			bool sessionStarted{ false };        // true while the timer is running
 			bool sessionFinished{ false };       // true after timer reached duration
-			int sessionDurationMs{ 20000 };      // session length in milliseconds (adjustable)
 
 			std::string logSessionName;
 			std::filesystem::path logFolder;
@@ -835,6 +970,8 @@ namespace nvvkhl
 			glm::vec3 defaultCenter{ 10.0f, 1.6f, 0.0f };
 
 		} m_settings;
+
+;
 
 
 		struct RayStatsGpu
@@ -920,7 +1057,7 @@ namespace nvvkhl
 			m_sbt->setup(m_app->getDevice(), gct_queue_index, m_alloc.get(), rt_prop);
 
 			// Set initial view size to XR resolution to avoid redundant resizes
-			if (m_enableXR && g_openXRState.swapchainWidth > 0)
+			if (g_enableXR && g_openXRState.swapchainWidth > 0)
 			{
 				//m_viewSize = glm::vec2(g_openXRState.swapchainWidth, g_openXRState.swapchainHeight);
 				m_viewSize = glm::vec2(
@@ -934,7 +1071,7 @@ namespace nvvkhl
 			createVulkanBuffers();
 
 			m_tonemapper->createComputePipeline();
-			startNewSession();
+			initialSetup();
 		}
 
 		void onDetach() override
@@ -947,7 +1084,7 @@ namespace nvvkhl
 		{
 			// In XR mode, onRenderVR manages GBuffer size (double-wide).
 			// Don't let the window system override it.
-			if (m_enableXR)
+			if (g_enableXR)
 				return;
 
 			// Skip if size hasn't actually changed
@@ -968,7 +1105,7 @@ namespace nvvkhl
 
 		void onUIMenu() override
 		{
-			if (m_enableXR)
+			if (g_enableXR)
 				return;
 
 			bool load_file{ false };
@@ -1024,6 +1161,211 @@ namespace nvvkhl
 			);
 		}
 
+
+		// Clear the "result" GBuffer (float4) to black so tonemapper outputs black.
+		// Records commands into the provided command buffer.
+		void clearResultToBlack(VkCommandBuffer cmd)
+		{
+			VkImage img = m_gBuffers->getColorImage(eGBufResult);
+
+			// Transition from GENERAL (shader write/read) to TRANSFER_DST for clear
+			VkImageMemoryBarrier toTransfer{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+			toTransfer.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+			toTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			toTransfer.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+			toTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+			toTransfer.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toTransfer.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toTransfer.image = img;
+			toTransfer.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+			vkCmdPipelineBarrier(cmd,
+				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+				VK_PIPELINE_STAGE_TRANSFER_BIT,
+				0, 0, nullptr, 0, nullptr, 1, &toTransfer);
+
+			VkClearColorValue clearColor{};
+			clearColor.float32[0] = 0.0f;
+			clearColor.float32[1] = 0.0f;
+			clearColor.float32[2] = 0.0f;
+			clearColor.float32[3] = 0.0f;
+
+			VkImageSubresourceRange range{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+			vkCmdClearColorImage(cmd, img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearColor, 1, &range);
+
+			// Transition back to GENERAL and make available for compute (tonemapper)
+			VkImageMemoryBarrier toGeneral{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+			toGeneral.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			toGeneral.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+			toGeneral.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+			toGeneral.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+			toGeneral.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toGeneral.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toGeneral.image = img;
+			toGeneral.subresourceRange = range;
+
+			vkCmdPipelineBarrier(cmd,
+				VK_PIPELINE_STAGE_TRANSFER_BIT,
+				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+				0, 0, nullptr, 0, nullptr, 1, &toGeneral);
+		}
+
+		void fullExperiment() {
+			// Initialize experiment state
+			m_settings.experiment.active = true;
+			m_settings.experiment.currentScene = 0;
+			m_settings.experiment.currentSetup = 0;
+			m_settings.experiment.isBlackScreen = false;
+			m_settings.experiment.experimentComplete = false;
+			m_settings.experiment.firstCaseStarted = true;
+
+			m_settings.sessionStarted = true;
+			m_settings.sessionFinished = false;
+			m_settings.sessionStart = std::chrono::steady_clock::now();
+			m_settings.timerMs = 0;
+
+			// Create randomized setup order for first scene
+			shuffleSetups();
+
+			// Load first scene and first setup from shuffled order
+			changeScene(m_settings.experiment.currentScene);
+			m_settings.experiment.currentSetup = m_settings.experiment.shuffledSetups[0];
+			m_settings.experiment.shuffledIndex = 0;
+			sceneSetupHandler(m_settings.experiment.currentSetup);
+			resetFrame();
+
+			// Start timing for first case
+			m_settings.experiment.currentCaseStart = std::chrono::steady_clock::now();
+
+			// Recenter if XR
+			if (g_enableXR)
+			{
+				recenterXRToIdentity();
+			}
+
+			// Log initial state
+			logExperimentState();
+
+			std::cout << "Experiment started: Scene " << m_settings.experiment.currentScene
+				<< " (" << sceneNames[m_settings.experiment.currentScene] << ")"
+				<< ", Setup " << m_settings.experiment.currentSetup << std::endl;
+		}
+
+		// Called every frame - this is your "loop" across frames
+		void updateExperiment() {
+			if (!m_settings.experiment.active || m_settings.experiment.experimentComplete)
+				return;
+
+			if (!m_settings.experiment.firstCaseStarted)
+				return;
+
+			auto now = std::chrono::steady_clock::now();
+
+			if (m_settings.experiment.isBlackScreen) {
+				// Check if black screen duration has elapsed
+				auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+					now - m_settings.experiment.blackScreenStart).count();
+
+				if (elapsed >= m_settings.experiment.blackScreenDurationMs) {
+					// Black screen done - advance to next case
+					m_settings.experiment.isBlackScreen = false;
+					m_pushConst.showBlackScreen = 0;
+
+					// THIS IS YOUR "LOOP" - advance to next iteration
+					advanceToNextCase();
+				}
+			}
+			else {
+				// Check if case duration has elapsed
+				auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+					now - m_settings.experiment.currentCaseStart).count();
+
+				if (elapsed >= m_settings.experiment.caseDurationMs) {
+					// Case done - start black screen
+					m_settings.experiment.isBlackScreen = true;
+					m_pushConst.showBlackScreen = 1;
+					resetFrame();
+
+					m_settings.experiment.blackScreenStart = now;
+					std::cout << "Case complete - showing black screen..." << std::endl;
+				}
+			}
+
+			// Update timer for UI
+			if (!m_settings.experiment.isBlackScreen) {
+				m_settings.timerMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+					now - m_settings.experiment.currentCaseStart).count();
+			}
+		}
+
+		void shuffleSetups() {
+			// Create array of setup indices
+			m_settings.experiment.shuffledSetups = { 0, 1, 2, 3 };
+
+			// Fisher-Yates shuffle
+			std::random_device rd;
+			std::mt19937 gen(rd());
+			std::shuffle(m_settings.experiment.shuffledSetups.begin(),
+				m_settings.experiment.shuffledSetups.end(),
+				gen);
+
+			m_settings.experiment.shuffledIndex = 0;
+
+			// Log the order for reproducibility
+			std::cout << "Setup order for scene " << m_settings.experiment.currentScene << ": ";
+			for (int setup : m_settings.experiment.shuffledSetups) {
+				std::cout << setup << " ";
+			}
+			std::cout << std::endl;
+		}
+
+		// This function mimics your nested loop iteration
+		void advanceToNextCase() {
+			// Move to next setup in shuffled order
+			m_settings.experiment.shuffledIndex++;
+
+			// Check if we've completed all setups for current scene
+			if (m_settings.experiment.shuffledIndex >= 4) {
+				// All setups done for this scene, move to next scene
+				m_settings.experiment.currentScene++;
+
+				// Check if all scenes are done
+				if (m_settings.experiment.currentScene >= sceneCount) {
+					// Experiment complete!
+					m_settings.experiment.active = false;
+					m_settings.experiment.experimentComplete = true;
+					m_settings.sessionFinished = true;
+					m_settings.sessionStarted = false;
+					std::cout << "Experiment complete! All scenes and setups done." << std::endl;
+					return;
+				}
+
+				// Load new scene
+				std::cout << "Loading new scene: " << sceneNames[m_settings.experiment.currentScene] << std::endl;
+				changeScene(m_settings.experiment.currentScene);
+
+				// Create new randomized order for this scene
+				shuffleSetups();
+			}
+
+			// Get next setup from shuffled order
+			m_settings.experiment.currentSetup = m_settings.experiment.shuffledSetups[m_settings.experiment.shuffledIndex];
+
+			// Apply the setup
+			sceneSetupHandler(m_settings.experiment.currentSetup);
+			resetFrame();
+
+			// Start timing for this new case
+			m_settings.experiment.currentCaseStart = std::chrono::steady_clock::now();
+
+			// Log the new case
+			logExperimentState();
+
+			std::cout << "Started case: Scene " << m_settings.experiment.currentScene
+				<< " (" << sceneNames[m_settings.experiment.currentScene] << ")"
+				<< ", Setup " << m_settings.experiment.currentSetup
+				<< " (shuffled index " << m_settings.experiment.shuffledIndex << "/3)" << std::endl;
+		}
 
 
 		void changeScene(int sceneIndex)
@@ -1124,14 +1466,13 @@ namespace nvvkhl
 
 		void onUIRender() override
 		{
-			//if (m_enableXR) //	// In XR mode, the UI is rendered in-world, so skip the desktop UI.
+			//if (g_enableXR) //	// In XR mode, the UI is rendered in-world, so skip the desktop UI.
 			//{
 			//	return;
 			//}
 			using namespace ImGuiH;
 
 			bool reset{ false };
-			updateSessionTimer();
 			// Pick under mouse cursor
 			//if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) || ImGui::IsKeyPressed(ImGuiKey_Space))
 			//{
@@ -1141,12 +1482,48 @@ namespace nvvkhl
 			{
 				if (m_settings.sessionStarted && !m_settings.sessionFinished)
 				{
+					// Check for key presses and log them
+					bool keyPressed = false;
+					const char* keyName = nullptr;
 					if (ImGui::IsKeyPressed(ImGuiKey_Space))
-						appendSessionLogLine("space");
-					if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
-						appendSessionLogLine("Numpad1");
-					if (ImGui::IsKeyPressed(ImGuiKey_Keypad2))
-						appendSessionLogLine("Numpad2");
+					{
+						keyPressed = true;
+						keyName = "space";
+					}
+					else if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
+					{
+						keyPressed = true;
+						keyName = "left_arrow";
+					}
+					else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow))
+					{
+						keyPressed = true;
+						keyName = "right_arrow";
+					}
+					else if (ImGui::IsKeyPressed(ImGuiKey_UpArrow))
+					{
+						keyPressed = true;
+						keyName = "up_arrow";
+					}
+					else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow))
+					{
+						keyPressed = true;
+						keyName = "down_arrow";
+					}
+					else if (ImGui::IsKeyPressed(ImGuiKey_Keypad1))
+					{
+						keyPressed = true;
+						keyName = "numpad1";
+					}
+					else if (ImGui::IsKeyPressed(ImGuiKey_Keypad2))
+					{
+						keyPressed = true;
+						keyName = "numpad2";
+					}
+					if (keyPressed && keyName)
+					{
+						appendSessionLogLine(keyName);
+					}
 				}
 			}
 
@@ -1171,9 +1548,9 @@ namespace nvvkhl
 					if (PropertyEditor::treeNode("Ray Tracing"))
 					{
 						reset |= PropertyEditor::entry("Depth", [&]
-							{ return ImGui::SliderInt("#1", &m_settings.maxDepth, 1, 10); });
+							{ return ImGui::SliderInt("#1", &m_settings.maxDepth, 1, 20); });
 						reset |= PropertyEditor::entry("Samples", [&]
-							{ return ImGui::SliderInt("#2", &m_settings.maxSamples, 1, 5); });
+							{ return ImGui::SliderInt("#2", &m_settings.maxSamples, 1, 10); });
 						reset |= PropertyEditor::entry("Frames",
 							[&]
 							{ return ImGui::DragInt("#3", &m_settings.maxFrames, 5.0F, 1, 1000000); });
@@ -1331,12 +1708,7 @@ namespace nvvkhl
 					{
 						startNewSession();
 					}
-					ImGui::SameLine();
-					if (ImGui::Button("Start Session"))
-					{
-						// start timer for the prepared session
-						beginSessionTimer();
-					}
+
 					ImGui::Separator();
 					ImGui::Text("Session Preset:");
 					if (ImGui::RadioButton("0 ", &m_settings.sceneSetupIdx, 0)) {
@@ -1354,9 +1726,43 @@ namespace nvvkhl
 					if (ImGui::RadioButton("3 ", &m_settings.sceneSetupIdx, 3)) {
 						sceneSetupHandler(m_settings.sceneSetupIdx);
 					}
+					if (!m_settings.experiment.active)
+					{
+						ImGui::SliderInt("Case duration", &m_settings.experiment.caseDurationMs, 2000, 30000);
+					}
 
 					ImGui::Text("Current session: %s", m_settings.logSessionName.c_str());
 					ImGui::Text("Timer: %lld ms", static_cast<long long>(m_settings.timerMs));
+				}
+
+				if (ImGui::CollapsingHeader("Experiment Control", ImGuiTreeNodeFlags_DefaultOpen))
+				{
+					if (m_settings.experiment.active)
+					{
+						ImGui::Text("Experiment Running");
+						ImGui::Text("Scene: %s (%d/%d)",
+							sceneNames[m_settings.experiment.currentScene],
+							m_settings.experiment.currentScene + 1, sceneCount);
+						ImGui::Text("Setup: %d/4 (Random order: %d/4)",
+							m_settings.experiment.currentSetup,
+							m_settings.experiment.shuffledIndex + 1);
+
+						// Show the randomized order for current scene
+						ImGui::Text("Setup order: ");
+						ImGui::SameLine();
+						for (int i = 0; i < 4; i++) {
+							if (i == m_settings.experiment.shuffledIndex) {
+								ImGui::TextColored(ImVec4(0, 1, 0, 1), "[%d] ",
+									m_settings.experiment.shuffledSetups[i]);
+							}
+							else {
+								ImGui::SameLine();
+								ImGui::Text("%d ", m_settings.experiment.shuffledSetups[i]);
+							}
+						}
+
+						// ... rest of UI ...
+					}
 				}
 
 				ImGui::End();
@@ -1407,7 +1813,12 @@ namespace nvvkhl
 // Call this after you set CameraManip to the desired start camera.
 		void recenterXRToIdentity()
 		{
-			if (!m_enableXR || !g_openXRState.isInitialized() || g_openXRState.session == XR_NULL_HANDLE)
+			if (!m_scene->valid()) {
+				std::cerr << "Cannot recenter: no scene loaded" << std::endl;
+				return;
+			}
+
+			if (!g_enableXR || !g_openXRState.isInitialized() || g_openXRState.session == XR_NULL_HANDLE)
 				return;
 
 			// Wait a frame to get a current head pose
@@ -1420,13 +1831,14 @@ namespace nvvkhl
 
 			// Locate views to read current head pose in the current reference space
 			//XrView views[2] = { {XR_TYPE_VIEW}, {XR_TYPE_VIEW} };
+
 			XrViewState viewState{ XR_TYPE_VIEW_STATE };
 			uint32_t viewCountOutput = 0;
 			XrViewLocateInfo viewLocate{ XR_TYPE_VIEW_LOCATE_INFO };
 			viewLocate.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
 			viewLocate.displayTime = frameState.predictedDisplayTime;
 			viewLocate.space = g_openXRState.referenceSpace;
-			XR_CHECK(xrLocateViews(g_openXRState.session, &viewLocate, &viewState, 2, &viewCountOutput, m_xrViews));
+			XR_CHECK(xrLocateViews(g_openXRState.session, &viewLocate, &viewState, 2, &viewCountOutput, g_xrViews));
 
 			const XrViewStateFlags validMask = XR_VIEW_STATE_ORIENTATION_VALID_BIT | XR_VIEW_STATE_POSITION_VALID_BIT;
 			if (viewCountOutput < 1 || (viewState.viewStateFlags & validMask) != validMask)
@@ -1441,7 +1853,7 @@ namespace nvvkhl
 			}
 
 			// headMat = current HMD pose (4x4) in reference space
-			glm::mat4 headMat = xrPoseToMat4(m_xrViews[0].pose);
+			glm::mat4 headMat = xrPoseToMat4(g_xrViews[0].pose);
 
 			// We want the head to become identity -> new reference pose = inverse(headMat)
 			glm::mat4 invHead = glm::inverse(headMat);
@@ -1502,10 +1914,57 @@ namespace nvvkhl
 			return glm::degrees(fov);
 		}
 
+		void setHeadsetDisplayInfo(const HeadsetDisplayInfo& info)
+		{
+			g_headsetDisplayInfo.headsetName = info.headsetName;
+			g_headsetDisplayInfo.displayWidth = info.displayWidth;
+			g_headsetDisplayInfo.displayHeight = info.displayHeight;
+			g_headsetDisplayInfo.pixelWidth = info.pixelWidth;
+			g_headsetDisplayInfo.pixelHeight = info.pixelHeight;
+			g_headsetDisplayInfo.ipd = info.ipd;
+			g_headsetDisplayInfo.fovDegrees = info.fovDegrees;
+			g_headsetDisplayInfo.fovRadians = info.fovRadians;
+		}
+
+
+		float getHeadsetViewerDistance() {
+			if (!g_enableXR || !g_openXRState.isInitialized()) {
+				return 0.5f; // Desktop monitor typical distance
+			}
+
+			// If we have physical panel dimensions, calculate accurately
+			if (g_headsetDisplayInfo.displayWidth > 0.0f && g_headsetDisplayInfo.fovRadians > 0.0f) {
+				// Using: distance = (panel_width / 2) / tan(fov / 2)
+				float halfPanelWidth = g_headsetDisplayInfo.displayWidth * 0.5f;
+				float halfFovRad = g_headsetDisplayInfo.fovRadians * 0.5f;
+				float viewerDistance = halfPanelWidth / std::tan(halfFovRad);
+
+				//std::cout << "Calculated viewer distance: " << viewerDistance
+				//	<< "m (from panel width " << g_headsetDisplayInfo.displayWidth * 1000.0f
+				//	<< "mm and FOV " << g_headsetDisplayInfo.fovDegrees << "°)" << std::endl;
+				return viewerDistance;
+			}
+
+			// Fallback for Quest 3S family: known fixed focus distance
+			const std::string hn = g_headsetDisplayInfo.headsetName;
+			if (hn.find("Quest") != std::string::npos) {
+				return 1.3f; // Meta Quest family fixed focus distance
+			}
+
+			// Generic VR headset fallback
+			return 1.5f;
+		}
 
 		void setStereoViews(XrView views[]) {
-			const float nearZ = 0.1f;
-			const float farZ = 1000.0f;
+			const auto& bounds = m_scene->getSceneBounds();
+			float sceneRadius = bounds.radius();
+
+			//const float nearZ = 0.1f;
+			//const float farZ = 1000.0f;
+
+			// Dynamic near/far based on scene size
+			const float nearZ = sceneRadius * 0.001f;  // 0.1% of scene radius
+			const float farZ = sceneRadius * 100.0f;   // 100x scene radius
 
 			if (!m_xrProjCached) {
 				m_cachedLeftProj = xrFovToProjMatrix(views[0].fov, nearZ, farZ);
@@ -1520,13 +1979,10 @@ namespace nvvkhl
 			// Calculate REAL horizontal FOV from OpenXR (asymmetric)
 			float leftFovH = glm::degrees(views[0].fov.angleRight - views[0].fov.angleLeft);
 			float rightFovH = glm::degrees(views[1].fov.angleRight - views[1].fov.angleLeft);
-			m_xrFovDegrees = (leftFovH + rightFovH) * 0.5f; // Average for shader
-			m_xrFovRadians = glm::radians(m_xrFovDegrees);
+			g_headsetDisplayInfo.fovDegrees = (leftFovH + rightFovH) * 0.5f;
+			g_headsetDisplayInfo.fovRadians = glm::radians(g_headsetDisplayInfo.fovDegrees);
 
-			//float horizontalFov = glm::degrees(views[0].fov.angleRight - views[0].fov.angleLeft);
-			//CameraManip.setFov(horizontalFov);
 			CameraManip.setFov(leftFovH);
-
 
 
 			// Get the desktop camera transform as our scene base position
@@ -1569,25 +2025,17 @@ namespace nvvkhl
 			// Calculate REAL IPD from actual eye positions
 			glm::vec3 leftEyePos(views[0].pose.position.x, views[0].pose.position.y, views[0].pose.position.z);
 			glm::vec3 rightEyePos(views[1].pose.position.x, views[1].pose.position.y, views[1].pose.position.z);
-			float newIPD = glm::distance(leftEyePos, rightEyePos);
-			if (abs(newIPD - m_hwXRIPD) > 0.0001f) {
-				m_hwXRIPD = newIPD;
-				m_xrEyeSeparation = m_hwXRIPD;
-				//std::cout << "HW(IPD): " << m_hwXRIPD * 1000.0f << "--" << std::endl;
-			}
-
-			static float lastIPD = 0.0f;
-			if (abs(m_xrEyeSeparation - lastIPD) > 0.001f) {
-				//std::cout << "XR Eye Separation (IPD): " << m_xrEyeSeparation * 1000.0f << "--" << std::endl;
-				lastIPD = m_xrEyeSeparation;
-			}
-
-			// Use THIS value for your reprojection calculations
-			m_frameInfo.eyeSeparation = m_xrEyeSeparation;
-
+			g_headsetDisplayInfo.ipd = glm::distance(leftEyePos, rightEyePos);
+			//m_xrEyeSeparation = g_headsetDisplayInfo.ipd;
 
 			const VkExtent2D frameSize = m_gBuffers->getSize();
-			presetConstShaderValues(m_frameInfo, m_xrFovDegrees, m_xrEyeSeparation, m_middleRadius, frameSize);
+			presetConstShaderValues(
+				m_frameInfo, 
+				g_headsetDisplayInfo.fovDegrees, 
+				g_headsetDisplayInfo.ipd, 
+				m_middleRadius, 
+				frameSize
+			);
 
 		}
 
@@ -1662,8 +2110,8 @@ namespace nvvkhl
 
 			// 2) Locate views
 			//XrView views[2] = { {XR_TYPE_VIEW}, {XR_TYPE_VIEW} };
-			//m_xrViews[0] = views[0];
-			//m_xrViews[1] = views[1];
+			//g_xrViews[0] = views[0];
+			//g_xrViews[1] = views[1];
 			uint32_t viewCountOutput = 0;
 
 			XrViewLocateInfo viewLocateInfo{ XR_TYPE_VIEW_LOCATE_INFO };
@@ -1672,7 +2120,7 @@ namespace nvvkhl
 			viewLocateInfo.space = g_openXRState.referenceSpace;
 
 			XrViewState xrViewState{ XR_TYPE_VIEW_STATE };
-			XR_CHECK(xrLocateViews(g_openXRState.session, &viewLocateInfo, &xrViewState, 2, &viewCountOutput, m_xrViews));
+			XR_CHECK(xrLocateViews(g_openXRState.session, &viewLocateInfo, &xrViewState, 2, &viewCountOutput, g_xrViews));
 
 			const XrViewStateFlags validMask = XR_VIEW_STATE_ORIENTATION_VALID_BIT | XR_VIEW_STATE_POSITION_VALID_BIT;
 			if (viewCountOutput != 2 || (xrViewState.viewStateFlags & validMask) != validMask)
@@ -1690,7 +2138,7 @@ namespace nvvkhl
 
 			// Fill per-eye FrameInfo: use CameraManip as the scene base,
 			{
-				setStereoViews(m_xrViews);
+				setStereoViews(g_xrViews);
 			}
 
 			// VR always resets frame to 0 — each frame is a new view, no accumulation
@@ -1983,8 +2431,8 @@ namespace nvvkhl
 			{
 				XrCompositionLayerProjectionView pv{ XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW };
 				pv.next = nullptr;
-				pv.pose = m_xrViews[eye].pose;
-				pv.fov = m_xrViews[eye].fov;
+				pv.pose = g_xrViews[eye].pose;
+				pv.fov = g_xrViews[eye].fov;
 
 				pv.subImage.swapchain = g_openXRState.swapchain;
 				pv.subImage.imageRect.offset = { 0, 0 };
@@ -2057,7 +2505,7 @@ namespace nvvkhl
 			// Get camera info
 			float view_aspect_ratio = (m_viewSize.x * 0.5f) / m_viewSize.y;
 			//float eyeOffset = 0.032f; // Half IPD in meters (~64mm total)
-			const float desktopEyeSeparation = m_xrEyeSeparation;
+			const float desktopEyeSeparation = g_headsetDisplayInfo.ipd;
 			float eyeOffset = desktopEyeSeparation * 0.5f; // Half IPD for stereo offset
 			const VkExtent2D frameSize = m_gBuffers->getSize();
 
@@ -2229,7 +2677,8 @@ namespace nvvkhl
 			and that wont change between frames, such as the number of samples or the max ray depth.
 		*/
 
-		void presetConstShaderValues(FrameInfo& fi, float fovDegrees, float eyeSeparation, float middleRadiusPct, VkExtent2D size) {
+		void presetConstShaderValues(FrameInfo& fi, float fovDegrees, float eyeSeparation,
+			float middleRadiusPct, VkExtent2D size) {
 			fi.fovDegrees = fovDegrees;
 			fi.fovRadians = glm::radians(fovDegrees);
 			fi.eyeSeparation = eyeSeparation;
@@ -2248,12 +2697,15 @@ namespace nvvkhl
 
 			fi.focalLengthPixels = (halfWidth * 0.5f) / fi.tanHalfFov;
 
+			// Get dynamic viewer distance instead of hardcoded HOST_VIEWER_DISTANCE
+			const float viewerDistance = getHeadsetViewerDistance();
+
 			/* Calculate Total screen distance in pixels
 				viewer_distance = (screen_width_per_eye / 2) / tan(FOV/2)
 				pixels_per_meter = (screen_width_per_eye / 2) / (viewer_distance * tan(FOV/2))
 			*/
-			const float pixelsPerMeter = (halfWidth * 0.5f) / (HOST_VIEWER_DISTANCE * fi.tanHalfFov);
-			fi.screenDistancePixels = HOST_VIEWER_DISTANCE * pixelsPerMeter;
+			const float pixelsPerMeter = (halfWidth * 0.5f) / (viewerDistance * fi.tanHalfFov);
+			fi.screenDistancePixels = viewerDistance * pixelsPerMeter;
 
 			const float maxAngleRad = glm::radians(HOST_MAX_COMFORTABLE_PARALLAX_ANGLE);
 			fi.maxComfortableParallaxPixels = 2.0f * fi.screenDistancePixels * tanf(maxAngleRad * 0.5f);
@@ -2263,12 +2715,17 @@ namespace nvvkhl
 			const float midRadius = middleRadiusPct * fovDegrees / 100.0f;
 			const float radiusDeg = midRadius * 0.5f * fovDegrees;
 			fi.reprojectionRadiusPixels = (pxToFoV > 1e-6f) ? (radiusDeg / pxToFoV) : 0.0f;
+
+			// Store the viewer distance in frameInfo for debugging/UI
+			// (you may need to add this field to FrameInfo struct)
+			// fi.viewerDistance = viewerDistance;
 		}
 
 
 		void onRender(VkCommandBuffer cmd) override
 		{
-			if (m_enableXR)
+			updateExperiment();
+			if (g_enableXR)
 			{
 				onRenderVR(cmd);
 			}
@@ -2313,15 +2770,6 @@ namespace nvvkhl
 		}
 
 
-		void beginSessionTimer()
-		{
-			m_settings.sessionStart = std::chrono::steady_clock::now();
-			m_settings.timerMs = 0;
-			m_settings.sessionStarted = true;
-			m_settings.sessionFinished = false;
-			std::cout << "Session started\n";
-		}
-
 		void updateSessionTimer()
 		{
 			if (!m_settings.sessionStarted || m_settings.sessionFinished)
@@ -2330,7 +2778,7 @@ namespace nvvkhl
 			m_settings.timerMs = std::chrono::duration_cast<std::chrono::milliseconds>(
 				std::chrono::steady_clock::now() - m_settings.sessionStart).count();
 
-			if (m_settings.timerMs >= m_settings.sessionDurationMs)
+			if (m_settings.timerMs >= m_settings.experiment.caseDurationMs)
 			{
 				// End session
 				m_settings.sessionFinished = true;
@@ -2338,6 +2786,11 @@ namespace nvvkhl
 				appendSessionLogLine("session_end");
 				std::cout << "Session finished (timer reached)\n";
 			}
+		}
+
+		void initialSetup() {
+			changeScene(0); // Load the first scene for initial setup
+			resetFrame();
 		}
 
 
@@ -2354,18 +2807,19 @@ namespace nvvkhl
 		*/
 		void startNewSession()
 		{
-			// stop any running session
+			// Stop any running session
 			m_settings.sessionStarted = false;
 			m_settings.sessionFinished = false;
 			m_settings.timerMs = 0;
 
 			resetFrame();
+
+			// Setup logging
 			const int lastId = getLastSessionId();
 			m_settings.sessionIndex = lastId + 1;
 
 			auto now = std::chrono::system_clock::now();
 			std::time_t tt = std::chrono::system_clock::to_time_t(now);
-
 			std::tm tm{};
 #ifdef _WIN32
 			localtime_s(&tm, &tt);
@@ -2392,30 +2846,20 @@ namespace nvvkhl
 			m_settings.logFile.open(m_settings.logFilePath, std::ios::out | std::ios::trunc);
 			if (m_settings.logFile.is_open())
 			{
-				m_settings.logFile << "TimerMs - Key Pressed - Mode\n";
+				m_settings.logFile << "TimerMs, Key Pressed, Reprojection (eye dominance), Circle Degree, Scene Name\n";
 				m_settings.logFile.flush();
 			}
 
 			std::cout << "New session prepared: " << m_settings.logSessionName << std::endl;
 
-			changeScene(m_settings.sceneIdx); 
-			sceneSetupHandler();
-			resetFrame();
-
-			// If XR is enabled, recenter so current HMD pose maps to the canonical CameraManip pose
-			if (m_enableXR)
-			{
-				recenterXRToIdentity();
-			}
+			// THIS IS THE KEY CHANGE: Just call fullExperiment() and it handles everything
+			fullExperiment();
 		}
 
-		void appendSessionLogLine(const char* keyPressed)
+		void logExperimentState()
 		{
 			if (!m_settings.logFile.is_open())
 				return;
-
-			m_settings.timerMs = std::chrono::duration_cast<std::chrono::milliseconds>(
-				std::chrono::steady_clock::now() - m_settings.sessionStart).count();
 
 			const char* modeText = "Unknown";
 			switch (m_settings.mode)
@@ -2433,19 +2877,61 @@ namespace nvvkhl
 			case 3: circleDegree = "60 degrees Circle"; break;
 			}
 
+			const char* sceneName = sceneNames[m_settings.experiment.currentScene];
+
+			m_settings.logFile
+				<< "0" << ","  // Timer starts at 0 for each case
+				<< sceneName << ","
+				<< m_settings.experiment.currentSetup << ","
+				<< modeText << ","
+				<< circleDegree << ","
+				<< "ShuffledIndex:" << m_settings.experiment.shuffledIndex
+				<< "\n";
+			m_settings.logFile.flush();
+		}
+
+		void appendSessionLogLine(const char* keyPressed)
+		{
+			if (!m_settings.logFile.is_open())
+				return;
+
+			// Update timer to current time
+			auto now = std::chrono::steady_clock::now();
+			m_settings.timerMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+				now - m_settings.sessionStart).count();
+
+			const char* modeText = "Unknown";
+			switch (m_settings.mode)
+			{
+			case 1:  modeText = "Left Dominant"; break;
+			case 0:  modeText = "Right Dominant"; break;
+			case -1: modeText = "No Reprojection"; break;
+			}
+
+			const char* circleDegree = "Unknown";
+			switch (m_settings.sceneSetupIdx) {
+			case 0: circleDegree = "No circle"; break;
+			case 1: circleDegree = "30deg circle"; break;
+			case 2: circleDegree = "45deg circle"; break;
+			case 3: circleDegree = "60deg circle"; break;
+			}
+
 			const char* sceneName = "Unknown";
-#ifdef _WIN32
 			if (m_settings.sceneIdx >= 0 && m_settings.sceneIdx < sceneCount)
 				sceneName = sceneNames[m_settings.sceneIdx];
-#endif
 
+			// Write the log line
 			m_settings.logFile
 				<< m_settings.timerMs << " - "
 				<< keyPressed << " - "
 				<< modeText << " - "
 				<< circleDegree << " - "
-				<< sceneName << '\n';
+				<< sceneName << "\n";
+
 			m_settings.logFile.flush();
+
+			std::cout << "Logged: " << m_settings.timerMs << "ms - " << keyPressed
+				<< " - " << modeText << " - " << circleDegree << " - " << sceneName << std::endl;
 		}
 
 		void createScene(const std::string& filename)
@@ -2529,7 +3015,7 @@ namespace nvvkhl
 
 #if defined(NVP_SUPPORTS_OPTIX9) || defined(NVP_SUPPORTS_OPTIX7)
 			// Only allocate denoiser buffers when denoising is actually enabled
-			//if (m_settings.denoiseApply && !m_enableXR)
+			//if (m_settings.denoiseApply && !g_enableXR)
 			if (m_settings.denoiseApply)
 
 			{
@@ -3043,7 +3529,7 @@ namespace nvvkhl
 		// Determine which image will be displayed, the original from ray tracer or the denoised one
 		bool showDenoisedImage() const
 		{
-			/*if (m_enableXR)
+			/*if (g_enableXR)
 				return false;*/
 			return m_settings.denoiseApply && ((m_frame >= m_settings.denoiseEveryNFrames) || m_settings.denoiseFirstFrame || (m_frame >= m_settings.maxFrames));
 		}
@@ -3096,7 +3582,6 @@ namespace nvvkhl
 			}
 			m_gBuffers.reset();
 
-			m_rasterPipe.destroy(m_device);
 			m_rtxPipe.destroy(m_device);
 			m_rtxSet->deinit();
 			m_sceneSet->deinit();
@@ -3115,7 +3600,6 @@ namespace nvvkhl
 		std::unique_ptr<AllocVma> m_alloc;
 
 		glm::vec2 m_viewSize = { 1, 1 };
-		VkClearColorValue m_clearColor = { {0.3F, 0.3F, 0.3F, 1.0F} }; // Clear color
 		VkDevice m_device = VK_NULL_HANDLE;                          // Convenient
 		VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;          // Convenient
 		std::unique_ptr<nvvkhl::GBuffer> m_gBuffers;                 // G-Buffers: color + depth
@@ -3129,7 +3613,6 @@ namespace nvvkhl
 
 		// Pipeline
 		PushConstant m_pushConst{}; // Information sent to the shader
-		PipelineContainer m_rasterPipe;
 		PipelineContainer m_rtxPipe;
 		int m_frame{ -1 };
 		FrameInfo m_frameInfo;
@@ -3166,18 +3649,15 @@ namespace nvvkhl
 		float m_blendFactor = 0.0f;
 		float m_middleRadius = 0.6f;
 		// XR related
-		// m_xrViews
-		XrView m_xrViews[2] = { { XR_TYPE_VIEW }, { XR_TYPE_VIEW } };
-		float m_xrEyeSeparation = 0.063f;
-		float m_hwXRIPD = 0.0f; 
-		float m_xrFovDegrees = 97.0f;       // Default, overwritten by runtime
-		float m_xrFovRadians = glm::radians(m_xrFovDegrees);
+		// g_xrViews
 		// m_xrProjCached and m_cachedLeftProj/m_cachedRightProj
 		glm::mat4 m_cachedLeftProj{ 1.0f };
 		glm::mat4 m_cachedRightProj{ 1.0f };
 		glm::mat4 m_cachedLeftProjInv{ 1.0f };
 		glm::mat4 m_cachedRightProjInv{ 1.0f };
 		bool      m_xrProjCached{ false };
+		std::chrono::steady_clock::time_point m_blackScreenUntil;
+
 
 		// Command buffers for rendering
 		struct CommandFrame
@@ -3293,14 +3773,15 @@ auto main(int argc, char** argv) -> int
 
 
 	// Keep only:
-	m_enableXR = initializeOpenXR(context);
+	g_enableXR = initializeOpenXR(context);
 
-	if (m_enableXR)
+	if (g_enableXR)
 	{
 		try
 		{
 			getSystemOpenXR();
 			createOpenXRSwapchain();
+			updateHeadsetDisplayInfo();
 			std::cout << "\n=== OpenXR VR Mode Enabled ===" << std::endl;
 			std::cout << "Swapchain created with " << g_openXRState.swapchainImages.size() << " images" << std::endl;
 			std::cout << "Resolution: " << systemProperties.graphicsProperties.maxSwapchainImageWidth
@@ -3311,7 +3792,7 @@ auto main(int argc, char** argv) -> int
 		{
 			std::cerr << "OpenXR post-init exception: " << e.what() << std::endl;
 			std::cerr << "Falling back to desktop mode." << std::endl;
-			m_enableXR = false;
+			g_enableXR = false;
 		}
 	}
 	else
@@ -3321,7 +3802,7 @@ auto main(int argc, char** argv) -> int
 
 
 	// Debug output to verify mode
-	std::cout << "\n=== Final Mode: " << (m_enableXR ? "VR MODE" : "DESKTOP MODE") << " ===" << std::endl;
+	std::cout << "\n=== Final Mode: " << (g_enableXR ? "VR MODE" : "DESKTOP MODE") << " ===" << std::endl;
 
 	// Application Vulkan setup ---------------------------
 	spec.instance = context->m_instance;
@@ -3367,8 +3848,8 @@ auto main(int argc, char** argv) -> int
 	//std::string hdr_file = nvh::findFile(R"(media/hdr/autumn_field_1k.hdr)", default_search_paths, true); // (180, 142, -88)
 	//std::string hdr_file = nvh::findFile(R"(media/hdr/autumn_hilly_field_1k.hdr)", default_search_paths, true); // (110, 180, -96 )
 	//std::string hdr_file = nvh::findFile(R"(media/hdr/golden_gate_hills_1k.hdr)", default_search_paths, true); // (-53, 151, 2)
-	//std::string hdr_file = nvh::findFile(R"(media/hdr/qwantani_noon_puresky_1k.hdr)", default_search_paths, true); // good (112, 49, 158)
-	std::string hdr_file = nvh::findFile(R"(media/hdr/spruit_sunrise_1k.hdr)", default_search_paths, true); //better (-4.6, 35, 121) 
+	std::string hdr_file = nvh::findFile(R"(media/hdr/qwantani_noon_puresky_1k.hdr)", default_search_paths, true); // good (112, 49, 158)
+	//std::string hdr_file = nvh::findFile(R"(media/hdr/spruit_sunrise_1k.hdr)", default_search_paths, true); //better (-4.6, 35, 121) 
 
 
 	optixDenoiser->onFileDrop(hdr_file.c_str());
@@ -3379,7 +3860,7 @@ auto main(int argc, char** argv) -> int
 	app->run();
 
 	// Cleanup OpenXR resources
-	if (m_enableXR)
+	if (g_enableXR)
 	{
 		g_openXRState.cleanup();
 	}
