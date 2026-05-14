@@ -108,6 +108,10 @@ mediump float gTanHalfFov = 1.0;
 mediump float gFocalLengthPixels = 0.0;
 mediump float gMaxComfortableParallaxPixels = 0.0;
 bool doDebug = false;
+// Reprojection depth-check parameters
+int reprojCheckSize = 3;                 // M in your MxM neighborhood (odd recommended)
+float reprojMaxDepthDiffMeters = 0.5;    // max allowed depth difference (meters)
+int reprojRequireValidSamples = 4;       // minimal valid samples in neighborhood
 
 vec2 uv;
 vec2 ndc;
@@ -593,8 +597,133 @@ float selectWarpStrength(int mode, float dist, float radius, float borderThickne
                                          depth, pixelPos, normal, time);
     }
 }
+// Relief Search: Finds exactly which dominant pixel projects to our current non-dominant pixel
+vec2 findSourceViaReliefSearch(vec2 nonDomLocalCoord, bool isLeftNonDom) {
+    // If we are rendering the Left eye (non-dom), the object appears further RIGHT than in the Right eye (dom).
+    // So to find the source in the Right eye, we must search LEFTWARDS (negative X).
+    float searchDir = isLeftNonDom ? -1.0 : 1.0;
+    
+    float maxSearchPixels = 60.0; // Max horizontal parallax (tune this)
+    int linearSteps = 12;         // Quality of search
+    
+    float stepSize = maxSearchPixels / float(linearSteps);
+    
+    vec2 currentSearchCoord = nonDomLocalCoord;
+    float currentDepthMeters = 1e30;
+    float expectedDisparity = 0.0;
+    float currentOffset = 0.0;
+    
+    // 1. Linear Search (find intersection bounding interval)
+    for (int i = 0; i < linearSteps; i++) {
+        currentOffset = float(i) * stepSize;
+        vec2 sampleCoord = nonDomLocalCoord + vec2(searchDir * currentOffset, 0.0);
+        
+        // Map to global dominant coordinates to read depth buffer
+        ivec2 globalSampleCoord = ivec2(sampleCoord);
+        if (isLeftNonDom) globalSampleCoord.x += halfWidth; // Left is non-dom, so dom is Right
+        else globalSampleCoord.x -= halfWidth;              // Right is non-dom, so dom is Left
+        
+        float dNorm = imageLoad(gDepth, clampToViewBounds(globalSampleCoord, !isLeftNonDom, halfWidth)).x;
+        if (dNorm > 0.0) {
+            currentDepthMeters = getWorldDepth(dNorm);
+            expectedDisparity = (eyeSeparation * gFocalLengthPixels) / currentDepthMeters;
+            
+            // Did we cross the surface?
+            if (currentOffset >= expectedDisparity) {
+                break;
+            }
+        }
+    }
+    
+    // 2. Binary Search (Refine the exact pixel hit)
+    float minOffset = max(0.0, currentOffset - stepSize);
+    float maxOffset = currentOffset;
+    
+    for (int i = 0; i < 5; i++) { // 5 binary refinement steps
+        float midOffset = mix(minOffset, maxOffset, 0.5);
+        vec2 sampleCoord = nonDomLocalCoord + vec2(searchDir * midOffset, 0.0);
+        
+        ivec2 globalSampleCoord = ivec2(sampleCoord);
+        if (isLeftNonDom) globalSampleCoord.x += halfWidth;
+        else globalSampleCoord.x -= halfWidth;
+        
+        float dNorm = imageLoad(gDepth, clampToViewBounds(globalSampleCoord, !isLeftNonDom, halfWidth)).x;
+        
+        if (dNorm > 0.0) {
+            float dMeters = getWorldDepth(dNorm);
+            float disp = (eyeSeparation * gFocalLengthPixels) / dMeters;
+            if (midOffset >= disp) {
+                maxOffset = midOffset; // Hit is before this point
+            } else {
+                minOffset = midOffset; // Hit is after this point
+            }
+        } else {
+            minOffset = midOffset; // Ignore holes
+        }
+    }
+    
+    // The final resolved offset
+    float finalOffset = mix(minOffset, maxOffset, 0.5);
+    
+    // Return the global coordinate in the dominant view
+    vec2 finalSourceGlobal = nonDomLocalCoord + vec2(searchDir * finalOffset, 0.0);
+    if (isLeftNonDom) finalSourceGlobal.x += float(halfWidth);
+    else finalSourceGlobal.x -= float(halfWidth);
+    
+    return finalSourceGlobal;
+}
 
+// Pure 3D reprojection: unproject → project to other view
+vec2 reprojectVia3D(vec2 screenPos, float depthNorm, mat4 fromViewInv, mat4 fromProjInv,
+                     mat4 toView, mat4 toProj)
+{
+    vec3 worldPos = reprojectWorldPosition(screenPos, depthNorm, fromViewInv, fromProjInv);
+    
+    if (length(worldPos) > 10000.0) {
+        return screenPos;
+    }
+    
+    vec4 otherClip = toProj * (toView * vec4(worldPos, 1.0));
+    
+    if (otherClip.w <= 0.0) {
+        return screenPos;
+    }
+    
+    vec3 otherNdc = otherClip.xyz / otherClip.w;
+    vec2 otherScreen = (otherNdc.xy * 0.5 + 0.5) * vec2(gl_LaunchSizeEXT.xy);
+    
+    return otherScreen;
+}
+// Return true when the MxM neighborhood around 'center' has max-min depth <= threshold
+bool depthNeighborhoodStable(ivec2 center, int M, float maxDeltaMeters)
+{
+    int halfM = M / 2;
+    float minD = 1e30;
+    float maxD = -1e30;
+    int valid = 0;
 
+    ivec2 imgSize = ivec2(gl_LaunchSizeEXT.xy);
+
+    for (int oy = -halfM; oy <= halfM; ++oy) {
+        for (int ox = -halfM; ox <= halfM; ++ox) {
+            ivec2 s = center + ivec2(ox, oy);
+            if (s.x < 0 || s.x >= imgSize.x || s.y < 0 || s.y >= imgSize.y)
+                continue;
+            float dnorm = imageLoad(gDepth, s).x;
+            if (dnorm <= 0.0) // no depth stored / invalid
+                continue;
+            float d = getWorldDepth(dnorm); // convert to meters
+            minD = min(minD, d);
+            maxD = max(maxD, d);
+            valid++;
+        }
+    }
+
+    if (valid < reprojRequireValidSamples) // not enough samples -> be conservative
+        return false;
+
+    return (maxD - minD) <= maxDeltaMeters;
+}
 bool reprojectPixel(
   float pixelRand, ivec2 otherViewCoord, float depth, 
   float probabilityFactor, float disparityPixels, float dist, float radius, 
@@ -603,6 +732,10 @@ bool reprojectPixel(
     bool reprojectionSuccess = false;
     ivec2 dominantCoord = otherViewCoord;
     bool skipRayTrace = false;
+
+    // --- ADD THE MISSING DECLARATIONS HERE ---
+    bool skipWarping = false;
+    vec2 dstFullF = vec2(otherViewCoord) + vec2(0.5);
     
     if (depth < maxDepthThreshold) {
       // Get pixel position for fluid warping
@@ -623,30 +756,23 @@ bool reprojectPixel(
       
       // Apply the warp
       if (warpStrengthVal > 0.001) {
-          float parallax = calculateParallaxPixelsValidated(depth);
-          float warpDirection = isLeftView ? 1.0 : -1.0;
-          float shift = parallax * warpStrengthVal;
-          
-          /*
-          vec3 worldPos = reprojectWorldPosition(vec2(otherViewCoord), depth, dominantViewInv, dominantProjInv);
-          vec4 ndomClip = nonDomProj * (nonDomView * vec4(worldPos, 1.0));
-            if (ndomClip.w > 1e-6) {
-                vec2 ndc = ndomClip.xy / ndomClip.w;
-                vec2 mappedScreen = (ndc * 0.5 + 0.5) * vec2(gl_LaunchSizeEXT.xy);
-                dominantCoord = ivec2(mappedScreen);
+            // Local coordinate of the pixel we are currently RENDERING
+            vec2 currentLocalCoord = vec2(gl_LaunchIDEXT.x % halfWidth, gl_LaunchIDEXT.y);
+            
+            // Execute the Relief Search
+            vec2 dstFullF = findSourceViaReliefSearch(currentLocalCoord, isLeftView);
+            
+            dominantCoord = ivec2(dstFullF);
+            
+            // Ensure bounds for dominant view
+            if (dominantEye == rightEye) {
+                dominantCoord.x = max(halfWidth, min(dominantCoord.x, int(gl_LaunchSizeEXT.x) - 1));
             } else {
-                // Fallback: simple horizontal warp when projection fails
-                dominantCoord.x += int(warpDirection * shift);
+                dominantCoord.x = max(0, min(dominantCoord.x, halfWidth - 1));
             }
-          */
-          dominantCoord.x += int(warpDirection * shift);
-          
-          // Ensure within bounds
-          if (dominantEye == rightEye) {
-              dominantCoord.x = max(halfWidth, min(dominantCoord.x, int(gl_LaunchSizeEXT.x) - 1));
-          } else {
-              dominantCoord.x = max(0, min(dominantCoord.x, halfWidth - 1));
-          }
+            
+            // Validate: check if the local depth variation is too large (occlusion/edge)
+            skipWarping = !depthNeighborhoodStable(dominantCoord, reprojCheckSize, reprojMaxDepthDiffMeters);
       }
       
       // Try to sample from warped coordinate
