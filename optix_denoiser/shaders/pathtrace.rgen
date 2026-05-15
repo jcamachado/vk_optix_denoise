@@ -112,6 +112,12 @@ bool doDebug = false;
 int reprojCheckSize = 3;                 // M in your MxM neighborhood (odd recommended)
 float reprojMaxDepthDiffMeters = 0.5;    // max allowed depth difference (meters)
 int reprojRequireValidSamples = 4;       // minimal valid samples in neighborhood
+float baseBorderThickness = 100.0;
+int quadrantTilt;
+float leftDepthThreshold =  1.0;
+float rightDepthThreshold =  1.0;
+float upperDepthThreshold = 1.0;
+float bottomDepthThreshold =  1.0;
 
 vec2 uv;
 vec2 ndc;
@@ -130,6 +136,51 @@ void getViewMatrices(out mat4 viewInv, out mat4 projInv)
 float getWorldDepth(float normalizedDepth) {
     //return depthValue * farDistLinear;
     return nearDistLinear + normalizedDepth * (farDistLinear - nearDistLinear);
+}
+
+int getEyeQuadrant()
+{
+    vec2 p = vec2(gl_LaunchIDEXT.xy);
+    float hw = float(halfWidth);
+    float fw = float(gl_LaunchSizeEXT.x);
+    float fh = float(gl_LaunchSizeEXT.y);
+
+    // per-eye horizontal range
+    float eyeX0 = isLeftView ? 0.0 : hw;
+    float eyeX1 = isLeftView ? hw : fw;
+
+    // eye center in global coords
+    vec2 center = vec2((eyeX0 + eyeX1) * 0.5, fh * 0.5);
+    vec2 d = p - center;
+
+    // flip Y for screen coordinate convention
+    float ang = degrees(atan(-d.y, d.x));
+    if (ang < 0.0) ang += 360.0;
+
+    // Map angles to quadrants:
+    // right: -45..45  -> 1
+    // top:   45..135  -> 2
+    // left:  135..225 -> 3
+    // bottom:225..315 -> 0
+    if (ang < 45.0 || ang >= 315.0) return 1;
+    if (ang < 135.0)                return 2;
+    if (ang < 225.0)                return 3;
+    return 0;
+}
+
+int getTiltedQuadrantFromEyeLocal(vec2 localPos, float eyeHalfWidth, float screenHeight)
+{
+    vec2 eyeCenter = vec2(eyeHalfWidth * 0.5, screenHeight * 0.5);
+    vec2 d = localPos - eyeCenter;
+
+    // Flip Y because screen Y usually increases downward
+    float ang = degrees(atan(-d.y, d.x));
+    if (ang < 0.0) ang += 360.0;
+
+    if (ang < 45.0 || ang >= 315.0) return 0; // right
+    if (ang < 135.0)                return 1; // top
+    if (ang < 225.0)                return 2; // left
+    return 3;                                // bottom
 }
 
 
@@ -359,14 +410,28 @@ float calculateParallaxPixelsValidated(float depth) {
     float worldDepth = getWorldDepth(depth);
     float rawParallax = (eyeSeparation * gFocalLengthPixels) / worldDepth;
     
+    // For very close objects (under 2 meters), be extremely conservative
+    if (worldDepth < 2.0) {
+        // Exponential falloff for close objects - they're better raytraced
+        float closenessFactor = pow(worldDepth / 2.0, 2.0); // 0 at depth 0, 1 at depth 2
+        return rawParallax * closenessFactor;
+    }
+    
+    // For close-medium objects (2-5m), linear falloff
+    if (worldDepth < 5.0) {
+        float t = (worldDepth - 2.0) / 3.0; // 0 to 1 over 2-5m range
+        float falloff = mix(0.4, 1.0, t); // Start at 40% at 2m, full at 5m
+        return rawParallax * falloff;
+    }
+    
     // For far objects (depth > 10m), use exact parallax without clamping
     if (worldDepth > 10.0) {
         return rawParallax;
     }
     
-    // For closer objects, apply comfort zone limits
+    // For 5-10m range, normal clamping
     float maxComfortable = gMaxComfortableParallaxPixels;
-    float minComfortable = -maxComfortable * 0.5; // Less negative for objects in front
+    float minComfortable = -maxComfortable * 0.3; // Less negative for objects in front
     
     return clamp(rawParallax, minComfortable, maxComfortable);
 }
@@ -597,51 +662,21 @@ float selectWarpStrength(int mode, float dist, float radius, float borderThickne
                                          depth, pixelPos, normal, time);
     }
 }
-// Relief Search: Finds exactly which dominant pixel projects to our current non-dominant pixel
+// Foreground-Biased 1D Relief Search
 vec2 findSourceViaReliefSearch(vec2 nonDomLocalCoord, bool isLeftNonDom) {
-    // If we are rendering the Left eye (non-dom), the object appears further RIGHT than in the Right eye (dom).
-    // So to find the source in the Right eye, we must search LEFTWARDS (negative X).
     float searchDir = isLeftNonDom ? -1.0 : 1.0;
     
-    float maxSearchPixels = 60.0; // Max horizontal parallax (tune this)
-    int linearSteps = 12;         // Quality of search
-    
+    int linearSteps = 16;         // Increased steps for better foreground detection
+    float maxSearchPixels = 100.0; // Ensure we cover large parallax for close objects
     float stepSize = maxSearchPixels / float(linearSteps);
     
-    vec2 currentSearchCoord = nonDomLocalCoord;
-    float currentDepthMeters = 1e30;
-    float expectedDisparity = 0.0;
-    float currentOffset = 0.0;
+    float bestOffset = 0.0;
+    float minError = 9999.0;
+    float closestDepthHit = 1e30; // Track the depth of the best hit
     
-    // 1. Linear Search (find intersection bounding interval)
-    for (int i = 0; i < linearSteps; i++) {
-        currentOffset = float(i) * stepSize;
-        vec2 sampleCoord = nonDomLocalCoord + vec2(searchDir * currentOffset, 0.0);
-        
-        // Map to global dominant coordinates to read depth buffer
-        ivec2 globalSampleCoord = ivec2(sampleCoord);
-        if (isLeftNonDom) globalSampleCoord.x += halfWidth; // Left is non-dom, so dom is Right
-        else globalSampleCoord.x -= halfWidth;              // Right is non-dom, so dom is Left
-        
-        float dNorm = imageLoad(gDepth, clampToViewBounds(globalSampleCoord, !isLeftNonDom, halfWidth)).x;
-        if (dNorm > 0.0) {
-            currentDepthMeters = getWorldDepth(dNorm);
-            expectedDisparity = (eyeSeparation * gFocalLengthPixels) / currentDepthMeters;
-            
-            // Did we cross the surface?
-            if (currentOffset >= expectedDisparity) {
-                break;
-            }
-        }
-    }
-    
-    // 2. Binary Search (Refine the exact pixel hit)
-    float minOffset = max(0.0, currentOffset - stepSize);
-    float maxOffset = currentOffset;
-    
-    for (int i = 0; i < 5; i++) { // 5 binary refinement steps
-        float midOffset = mix(minOffset, maxOffset, 0.5);
-        vec2 sampleCoord = nonDomLocalCoord + vec2(searchDir * midOffset, 0.0);
+    for (int i = 0; i <= linearSteps; i++) {
+        float offset = float(i) * stepSize;
+        vec2 sampleCoord = nonDomLocalCoord + vec2(searchDir * offset, 0.0);
         
         ivec2 globalSampleCoord = ivec2(sampleCoord);
         if (isLeftNonDom) globalSampleCoord.x += halfWidth;
@@ -651,22 +686,23 @@ vec2 findSourceViaReliefSearch(vec2 nonDomLocalCoord, bool isLeftNonDom) {
         
         if (dNorm > 0.0) {
             float dMeters = getWorldDepth(dNorm);
-            float disp = (eyeSeparation * gFocalLengthPixels) / dMeters;
-            if (midOffset >= disp) {
-                maxOffset = midOffset; // Hit is before this point
-            } else {
-                minOffset = midOffset; // Hit is after this point
+            float expectedParallax = (eyeSeparation * gFocalLengthPixels) / dMeters;
+            float err = abs(expectedParallax - offset);
+            
+            // Accept this hit if the error is small (< 1.5 pixels)
+            if (err < 1.5) {
+                // If we found a closer object that ALSO matches the geometry, prefer it!
+                // This prevents background dragging over foreground objects.
+                if (dMeters < closestDepthHit) {
+                    closestDepthHit = dMeters;
+                    bestOffset = expectedParallax; // Use the exact calculated parallax, not the step offset
+                }
             }
-        } else {
-            minOffset = midOffset; // Ignore holes
         }
     }
     
-    // The final resolved offset
-    float finalOffset = mix(minOffset, maxOffset, 0.5);
-    
-    // Return the global coordinate in the dominant view
-    vec2 finalSourceGlobal = nonDomLocalCoord + vec2(searchDir * finalOffset, 0.0);
+    // Convert resolved offset to global dominant coordinate
+    vec2 finalSourceGlobal = nonDomLocalCoord + vec2(searchDir * bestOffset, 0.0);
     if (isLeftNonDom) finalSourceGlobal.x += float(halfWidth);
     else finalSourceGlobal.x -= float(halfWidth);
     
@@ -694,6 +730,43 @@ vec2 reprojectVia3D(vec2 screenPos, float depthNorm, mat4 fromViewInv, mat4 from
     
     return otherScreen;
 }
+float neighborhoodRaytraceBias(ivec2 center, int M, float maxDeltaMeters)
+{
+    int halfM = M / 2;
+    float minD = 1e30;
+    float maxD = -1e30;
+    int valid = 0;
+
+    ivec2 imgSize = ivec2(gl_LaunchSizeEXT.xy);
+
+    for (int oy = -halfM; oy <= halfM; ++oy) {
+        for (int ox = -halfM; ox <= halfM; ++ox) {
+            ivec2 s = center + ivec2(ox, oy);
+            if (s.x < 0 || s.x >= imgSize.x || s.y < 0 || s.y >= imgSize.y)
+                continue;
+
+            float dnorm = imageLoad(gDepth, s).x;
+            if (dnorm <= 0.0)
+                continue;
+
+            float d = getWorldDepth(dnorm);
+            minD = min(minD, d);
+            maxD = max(maxD, d);
+            valid++;
+        }
+    }
+
+    if (valid < 5)
+        return 1.0; // not enough data, be conservative
+
+    float delta = maxD - minD;
+
+    // Below threshold -> no extra bias.
+    // Above threshold -> rapidly favor raytrace.
+    float t = smoothstep(maxDeltaMeters, maxDeltaMeters * 2.0, delta);
+    return t;
+}
+
 // Return true when the MxM neighborhood around 'center' has max-min depth <= threshold
 bool depthNeighborhoodStable(ivec2 center, int M, float maxDeltaMeters)
 {
@@ -724,6 +797,36 @@ bool depthNeighborhoodStable(ivec2 center, int M, float maxDeltaMeters)
 
     return (maxD - minD) <= maxDeltaMeters;
 }
+
+
+// Add this confidence calculation function
+// Check depth continuity in 3x3 neighborhood
+float calculateReprojectionConfidence(ivec2 coord, float depth, float parallax) {
+    float depthVariance = 0.0;
+    int validSamples = 0;
+    for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+            ivec2 sampleCoord = coord + ivec2(x, y);
+            if (sampleCoord.x >= 0 && sampleCoord.x < int(gl_LaunchSizeEXT.x) &&
+                sampleCoord.y >= 0 && sampleCoord.y < int(gl_LaunchSizeEXT.y)) {
+                
+                float sampleDepth = imageLoad(gDepth, sampleCoord).x;
+                depthVariance += abs(depth - sampleDepth);
+                validSamples++;
+            }
+        }
+    }
+    if (validSamples > 0) {
+        depthVariance /= float(validSamples);
+    }
+    float depthConfidence = exp(-depthVariance * 10.0); // Lower confidence near depth edges
+    
+    // Lower confidence for large parallax (potential occlusion)
+    float parallaxConfidence = 1.0 - smoothstep(5.0, 30.0, abs(parallax));
+    return depthConfidence * parallaxConfidence; // Combine confidences
+}
+
+
 bool reprojectPixel(
   float pixelRand, ivec2 otherViewCoord, float depth, 
   float probabilityFactor, float disparityPixels, float dist, float radius, 
@@ -755,50 +858,35 @@ bool reprojectPixel(
         
       
       // Apply the warp
+      // Apply the warp
       if (warpStrengthVal > 0.001) {
-            // Local coordinate of the pixel we are currently RENDERING
             vec2 currentLocalCoord = vec2(gl_LaunchIDEXT.x % halfWidth, gl_LaunchIDEXT.y);
             
-            // Execute the Relief Search
-            vec2 dstFullF = findSourceViaReliefSearch(currentLocalCoord, isLeftView);
-            
+            // Execute 1D Relief Search
+            dstFullF = findSourceViaReliefSearch(currentLocalCoord, isLeftView);
             dominantCoord = ivec2(dstFullF);
             
-            // Ensure bounds for dominant view
             if (dominantEye == rightEye) {
                 dominantCoord.x = max(halfWidth, min(dominantCoord.x, int(gl_LaunchSizeEXT.x) - 1));
             } else {
                 dominantCoord.x = max(0, min(dominantCoord.x, halfWidth - 1));
             }
             
-            // Validate: check if the local depth variation is too large (occlusion/edge)
             skipWarping = !depthNeighborhoodStable(dominantCoord, reprojCheckSize, reprojMaxDepthDiffMeters);
       }
       
       // Try to sample from warped coordinate
-      if (dominantCoord.x >= 0 && dominantCoord.x < int(gl_LaunchSizeEXT.x) &&
+      // ADD skipWarping CHECK HERE
+      if (!skipWarping && dominantCoord.x >= 0 && dominantCoord.x < int(gl_LaunchSizeEXT.x) &&
           dominantCoord.y >= 0 && dominantCoord.y < int(gl_LaunchSizeEXT.y)) {
           
-          // Optional: Sample multiple points for smoother transition
-          vec4 colorAccum = vec4(0.0);
-          vec4 albedoAccum = vec4(0.0);
-          vec4 normalAccum = vec4(0.0);
-          int samples = 1;
+          vec4 colorAccum = imageLoad(image, dominantCoord);
           
-          // Single sample for now (can be expanded to multi-sample)
-          colorAccum = imageLoad(image, dominantCoord);
-          //albedoAccum = imageLoad(gAlbedo, dominantCoord);
-          //normalAccum = imageLoad(gNormal, dominantCoord);
-          
-          //Reprojected image
-          // debug paint reprojected red
           if (doDebug){
               imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 0.0, 0.0, 1.0));
-          }else{
-            imageStore(image, ivec2(gl_LaunchIDEXT.xy), colorAccum);
+          } else {
+              imageStore(image, ivec2(gl_LaunchIDEXT.xy), colorAccum);
           }
-          //imageStore(gAlbedo, ivec2(gl_LaunchIDEXT.xy), albedoAccum);
-          //imageStore(gNormal, ivec2(gl_LaunchIDEXT.xy), normalAccum);
           reprojectionSuccess = true;
       }
       
@@ -862,97 +950,66 @@ bool reprojectPixel(
   return skipRayTrace;
 }
 
-// Add this confidence calculation function
-// Check depth continuity in 3x3 neighborhood
-float calculateReprojectionConfidence(ivec2 coord, float depth, float parallax) {
-    float depthVariance = 0.0;
-    int validSamples = 0;
-    for (int y = -1; y <= 1; y++) {
-        for (int x = -1; x <= 1; x++) {
-            ivec2 sampleCoord = coord + ivec2(x, y);
-            if (sampleCoord.x >= 0 && sampleCoord.x < int(gl_LaunchSizeEXT.x) &&
-                sampleCoord.y >= 0 && sampleCoord.y < int(gl_LaunchSizeEXT.y)) {
-                
-                float sampleDepth = imageLoad(gDepth, sampleCoord).x;
-                depthVariance += abs(depth - sampleDepth);
-                validSamples++;
-            }
-        }
-    }
-    if (validSamples > 0) {
-        depthVariance /= float(validSamples);
-    }
-    float depthConfidence = exp(-depthVariance * 10.0); // Lower confidence near depth edges
-    
-    // Lower confidence for large parallax (potential occlusion)
-    float parallaxConfidence = 1.0 - smoothstep(5.0, 30.0, abs(parallax));
-    return depthConfidence * parallaxConfidence; // Combine confidences
-}
-
 
 void blendRaytracedAndReprojected(float blendFactor, ivec2 otherViewCoord, float depth, 
-                                 float disparityPixels, float dist, float radius, 
-                                 bool isLeftView, float borderThickness, ivec2 adjustedPixelPos, uint seed) {
+                                  float disparityPixels, float dist, float radius, 
+                                  bool isLeftView, float borderThickness, ivec2 adjustedPixelPos, uint seed) {
     
-    // Sample reprojected content
+    // Reprojected sample
     ivec2 reprojCoord = otherViewCoord;
-    float parallaxPixels = calculateParallaxPixelsValidated(depth);    //VALIDATED parallax
-    //float parallaxPixels = 0.3;    //For testing
-    
+    float parallaxPixels = calculateParallaxPixelsValidated(depth);
     float parallaxShift = parallaxPixels * blendFactor;
-    
     float warpDirection = isLeftView ? 1.0 : -1.0;
-    reprojCoord.x += int(warpDirection * parallaxShift);  // Apply warping on blended reproj coord
-    
-    // Ensure within bounds
+    reprojCoord.x += int(warpDirection * parallaxShift);
+
+    // Clamp to correct half
     if (dominantEye == rightEye) {
         reprojCoord.x = max(halfWidth, min(reprojCoord.x, int(gl_LaunchSizeEXT.x) - 1));
     } else {
         reprojCoord.x = max(0, min(reprojCoord.x, halfWidth - 1));
     }
-    
-    // Get reprojected color
+
     vec3 reprojColor = vec3(0.0);
-    vec3 reprojAlbedo = vec3(0.0);
-    vec3 reprojNormal = vec3(0.0);
-    
-    if (reprojCoord.x >= 0 && reprojCoord.x < int(gl_LaunchSizeEXT.x)) {
+    if (reprojCoord.x >= 0 && reprojCoord.x < int(gl_LaunchSizeEXT.x) &&
+        reprojCoord.y >= 0 && reprojCoord.y < int(gl_LaunchSizeEXT.y)) {
         reprojColor = imageLoad(image, reprojCoord).rgb;
-        //reprojAlbedo = imageLoad(gAlbedo, reprojCoord).rgb;
-        //reprojNormal = imageLoad(gNormal, reprojCoord).rgb;
     }
-    
-    // Get raytraced color for this pixel
+
+    // Raytraced color stays at the current pixel
     float primaryT_dummy;
     vec3 raytracedColor = samplePixel(seed, adjustedPixelPos, false, primaryT_dummy);
-    
-    // Trace albedo/normal for current pixel
     traceAlbedo(adjustedPixelPos);
-    //vec3 raytracedAlbedo = gUnpackedAlbedo.rgb;
-    //vec3 raytracedNormal = gUnpackedNormal;
-    
-    // Blend between raytraced and reprojected
-    float confidence = calculateReprojectionConfidence(otherViewCoord, depth, disparityPixels);
-    float usedBlend = blendFactor * confidence; // low confidence -> less reproj contribution
 
-    vec3 finalColor = mix(raytracedColor, reprojColor, usedBlend);
-    //vec3 finalAlbedo = mix(raytracedAlbedo, reprojAlbedo, blendFactor);
-    //vec3 finalNormal = mix(raytracedNormal, reprojNormal, blendFactor);
-    
-    // Store results
-    // Blended 
-    if (doDebug){
+    // Bias toward raytrace for closer and more centered pixels
+    float worldDepthMeters = getWorldDepth(depth);
+
+    // closer => more raytrace, farther => more reproj
+    float depthBias = smoothstep(1.0, 6.0, worldDepthMeters);
+
+    // centered => more raytrace, outer transition => more reproj
+    float radialBias = smoothstep(radius, radius + borderThickness, dist);
+
+    // Keep your existing confidence
+    float confidence = calculateReprojectionConfidence(otherViewCoord, depth, disparityPixels);
+
+    float neighborhoodBias = neighborhoodRaytraceBias(reprojCoord, 5, 1.5);
+    // Final probability of choosing reprojection
+    float reprojProb;
+    //reprojProb =  = blendFactor * confidence * depthBias * radialBias
+    reprojProb *= (1.0 - neighborhoodBias);
+
+    // Dither: choose one or the other per pixel
+    uint noiseSeed = seed ^ uint(adjustedPixelPos.x * 1973 + adjustedPixelPos.y * 9277 + pc.frame * 26699);
+    float r = rand(noiseSeed);
+
+    vec3 finalColor = (r < reprojProb) ? reprojColor : raytracedColor;
+
+    if (doDebug) {
         imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 1.0, 1.0, 1.0));
-          }else{
+    } else {
         imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(finalColor, 1.0));
     }
-    //imageStore(gAlbedo, ivec2(gl_LaunchIDEXT.xy), vec4(finalAlbedo, 1.0));
-    //imageStore(gNormal, ivec2(gl_LaunchIDEXT.xy), vec4(finalNormal, 1.0));
-    
-    // Visualize blend factor
-    //imageStore(gDisparity, ivec2(gl_LaunchIDEXT.xy), vec4(blendFactor, 1.0 - blendFactor, 0.0, 1.0));
 }
-
 bool isInDisparityZone(int pixelX, float depth, bool isLeftView) {
     const float OCCLUSION_ANGLE_DEG = 8.0;
     float occlusionFraction = OCCLUSION_ANGLE_DEG / fovDegrees;
@@ -1097,15 +1154,32 @@ void main()
         // Calculate adaptive border thickness
         vec4 normalData = imageLoad(gNormal, otherViewCoord);
         normal = normalData.rgb * 2.0 - 1.0;
-        borderThickness = adaptiveBorderThickness(depth, normal, vec2(gl_LaunchIDEXT.xy));
-    
+        //borderThickness = adaptiveBorderThickness(depth, normal, vec2(gl_LaunchIDEXT.xy));
+        borderThickness = max(
+            baseBorderThickness, 
+            adaptiveBorderThickness(depth, normal, vec2(gl_LaunchIDEXT.xy))
+            );
+
         // --- ADAPTIVE REPROJECTION DECISION (same as working code) ---
         // Close objects (small depth) will NOT be reprojected
         // Far objects (large depth) WILL be reprojected
         float linearDepth = getWorldDepth(depth); // Convert to meters
-        float depthThreshold = 1.0; // in meters
 
-        if ((dist > radius && !inDisparitySkipZone && linearDepth > 0.1) && linearDepth > depthThreshold) {
+        //int quadrant = getTiltedQuadrantFromEyeLocal(vec2(adjustedPixelPos), float(halfWidth), float(gl_LaunchSizeEXT.y));
+        int quadrant = getEyeQuadrant();
+        float baseDepthThreshold = 1.0; // 1 meter base
+        if (quadrant == 0) baseDepthThreshold = rightDepthThreshold;
+        else if (quadrant == 1) baseDepthThreshold = upperDepthThreshold;
+        else if (quadrant == 2) baseDepthThreshold = leftDepthThreshold;
+        else baseDepthThreshold = bottomDepthThreshold;
+
+        float distanceFromCenter = dist;
+        float distanceFactor = smoothstep(0.0, radius, distanceFromCenter);
+        float depthThreshold = baseDepthThreshold * mix(1.0, 3.0, distanceFactor);
+
+        // Only reproject if depth is beyond adaptive threshold
+        if ((dist > radius && !inDisparitySkipZone && linearDepth > 0.1) && 
+            linearDepth > depthThreshold) {
             doReprojection = true;
         }
         else {
@@ -1131,34 +1205,32 @@ void main()
   }
 
   */
-  if (pc.passId == 0) {
+    if (pc.passId == 0) {
         doDebug = false;
-  }
+    }
     if (doReprojection) {
-        // Depth influence - closer objects stay raytraced longer
         float depthInfluence = 1.0 - smoothstep(nearDistNorm, farDistNorm, depth);
-        
-        // Distance influence
         float distanceInfluence = clamp((dist - radius) / borderThickness, 0.0, 1.0);
-        
-        // Combined transition factor
         float transitionFactor = distanceInfluence * (1.0 - depthInfluence * 0.5);
-        
-        if ((transitionFactor >= 0.4 || depth > maxDepthThreshold)&& pc.mode != 2) {
-            // Full reprojection for far periphery
-            reprojectPixel(0.0, otherViewCoord, depth, 0.0, parallaxPixels, 
-                          dist, radius, isLeftView, borderThickness);
-            return;
-        } else if (transitionFactor > 0.1) {
-            // Smooth transition zone - blend
-            blendRaytracedAndReprojected(transitionFactor, otherViewCoord, depth, 
-                                       parallaxPixels, dist, radius, isLeftView, 
-                                       borderThickness, adjustedPixelPos, seed);
-                                       // Blended 
-            //imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 1.0, 1.0, 1.0));
+
+        bool insideBaseBorder = (dist > radius) && (dist <= radius + baseBorderThickness);
+
+        // First: blend if we're in the transition zone or inside the base border
+        if (((transitionFactor > 0.1 && transitionFactor < 0.4) || insideBaseBorder) && pc.mode != 2) {
+            float blendAmount = max(transitionFactor, insideBaseBorder ? 0.1 : 0.0);
+
+            blendRaytracedAndReprojected(blendAmount, otherViewCoord, depth,
+                                            parallaxPixels, dist, radius, isLeftView,
+                                            baseBorderThickness, adjustedPixelPos, seed);
             return;
         }
-        // If transitionFactor <= 0.1, fall through to path tracing (close objects)
+
+        // Then: full reprojection only outside the transition zone
+        if ((transitionFactor >= 0.4 || depth > maxDepthThreshold) && pc.mode != 2) {
+            reprojectPixel(0.0, otherViewCoord, depth, 0.0, parallaxPixels,
+                            dist, radius, isLeftView, borderThickness);
+            return;
+        }
     }
   }
 
