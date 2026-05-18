@@ -113,11 +113,13 @@ int reprojCheckSize = 3;                 // M in your MxM neighborhood (odd reco
 float reprojMaxDepthDiffMeters = 0.5;    // max allowed depth difference (meters)
 int reprojRequireValidSamples = 4;       // minimal valid samples in neighborhood
 float baseBorderThickness = 100.0;
+float baseDegreeBorder = 2.0; // degrees
 int quadrantTilt;
-float leftDepthThreshold =  1.0;
-float rightDepthThreshold =  1.0;
-float upperDepthThreshold = 1.0;
-float bottomDepthThreshold =  1.0;
+// The higher the threshold, more raytracing
+float upperDepthThreshold = 0.5;    // Quad 1
+float leftDepthThreshold =  1.0;    // Quad 2
+float rightDepthThreshold =  1.0;   // Quad 0
+float bottomDepthThreshold =  2.5;  // Quad 3
 
 vec2 uv;
 vec2 ndc;
@@ -162,25 +164,10 @@ int getEyeQuadrant()
     // top:   45..135  -> 2
     // left:  135..225 -> 3
     // bottom:225..315 -> 0
-    if (ang < 45.0 || ang >= 315.0) return 1;
-    if (ang < 135.0)                return 2;
-    if (ang < 225.0)                return 3;
-    return 0;
-}
-
-int getTiltedQuadrantFromEyeLocal(vec2 localPos, float eyeHalfWidth, float screenHeight)
-{
-    vec2 eyeCenter = vec2(eyeHalfWidth * 0.5, screenHeight * 0.5);
-    vec2 d = localPos - eyeCenter;
-
-    // Flip Y because screen Y usually increases downward
-    float ang = degrees(atan(-d.y, d.x));
-    if (ang < 0.0) ang += 360.0;
-
-    if (ang < 45.0 || ang >= 315.0) return 0; // right
-    if (ang < 135.0)                return 1; // top
-    if (ang < 225.0)                return 2; // left
-    return 3;                                // bottom
+    if (ang < 45.0 || ang >= 315.0) return 0;
+    if (ang < 135.0)                return 1;
+    if (ang < 225.0)                return 2;
+    return 3;
 }
 
 
@@ -1165,7 +1152,6 @@ void main()
         // Far objects (large depth) WILL be reprojected
         float linearDepth = getWorldDepth(depth); // Convert to meters
 
-        //int quadrant = getTiltedQuadrantFromEyeLocal(vec2(adjustedPixelPos), float(halfWidth), float(gl_LaunchSizeEXT.y));
         int quadrant = getEyeQuadrant();
         float baseDepthThreshold = 1.0; // 1 meter base
         if (quadrant == 0) baseDepthThreshold = rightDepthThreshold;

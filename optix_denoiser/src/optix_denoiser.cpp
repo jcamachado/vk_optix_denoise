@@ -1378,8 +1378,8 @@ namespace nvvkhl
 				m_settings.pointLightEnabled = false;
 
 				// Canonical start camera for Chess (explicit values requested)
-				glm::vec3 cameraPos(-0.805f, 0.435f, 0.081f);           // Eye
-				glm::vec3 cameraCenter(14.18f, -3.122f, 1.827);       // Center
+				glm::vec3 cameraPos(-3.005f, 1.455f, 0.15f);           // Eye
+				glm::vec3 cameraCenter(14.31f, -2.9022f, 0.505);       // Center
 				glm::vec3 up(0.0f, 1.0f, 0.0f);
 				CameraManip.setLookat(cameraPos, cameraCenter, up, true);
 			}
@@ -2940,7 +2940,11 @@ namespace nvvkhl
 
 			// ------- Apply a uniform scene scale here -------
 			// Change this value to scale the whole glTF scene (e.g. 0.5 = half size, 2.0 = double size).
-			const float sceneScale = 1.0f;
+			float sceneScale = 1.0f;
+			// if scene is beautifulGame, use scale 3.0f, otherwise, 1.0f
+			if (filename.find("Untitled") != std::string::npos) {
+				sceneScale = 7.0f;
+			}
 
 			// Get the root node, update its scale, and set it back.
 			tinygltf::Node rootNode = m_scene->getSceneRootNode();
