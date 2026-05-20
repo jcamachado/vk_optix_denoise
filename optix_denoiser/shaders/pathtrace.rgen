@@ -821,6 +821,82 @@ float calculateReprojectionConfidence(ivec2 coord, float depth, float parallax) 
     return depthConfidence * parallaxConfidence; // Combine confidences
 }
 
+
+// Advanced DIBR Coordinate Synthesis
+// Finds the exact source coordinate in the dominant eye that corresponds to the current non-dominant pixel
+vec2 synthesizeCoordinateAdvanced(vec2 nonDomLocalCoord, bool isLeftNonDom) {
+    float searchDir = isLeftNonDom ? -1.0 : 1.0;
+    
+    int steps = 24; // High quality search
+    float maxSearchMeters = 50.0; // Search depth up to 50 meters
+    
+    float closestDepthHit = 1e30; 
+    vec2 bestSourceCoord = nonDomLocalCoord;
+    bool foundMatch = false;
+
+    // Search along the epipolar line
+    for (int i = 0; i < steps; i++) {
+        // Linearly sample depth values in inverse space for better precision close up
+        float t = float(i) / float(steps - 1);
+        float searchDistMeters = 0.5 + t * maxSearchMeters; // From 0.5m to 50m
+        
+        // At this depth, what would the parallax be?
+        float expectedParallax = (eyeSeparation * gFocalLengthPixels) / searchDistMeters;
+        
+        // Where would this pixel be in the dominant eye?
+        vec2 sampleCoord = nonDomLocalCoord + vec2(searchDir * expectedParallax, 0.0);
+        
+        // Clamp to avoid reading out of bounds
+        if (sampleCoord.x < 0.0 || sampleCoord.x >= float(halfWidth)) continue;
+
+        // Convert to global dominant coordinate to read its stored depth
+        ivec2 globalSampleCoord = ivec2(sampleCoord);
+        if (isLeftNonDom) globalSampleCoord.x += halfWidth;
+        else globalSampleCoord.x -= halfWidth;
+        
+        // Read actual depth from the dominant eye
+        float dNorm = imageLoad(gDepth, clampToViewBounds(globalSampleCoord, !isLeftNonDom, halfWidth)).x;
+        
+        if (dNorm > 0.0) {
+            float actualDistMeters = getWorldDepth(dNorm);
+            
+            // Does the actual depth at this location match the depth we are searching for?
+            // Tolerance increases with distance (perspective effect)
+            float tolerance = 0.1 + (actualDistMeters * 0.05); 
+            
+            if (abs(actualDistMeters - searchDistMeters) < tolerance) {
+                // We found a matching surface!
+                // Prioritize the closest surface (handles occlusions correctly)
+                if (actualDistMeters < closestDepthHit) {
+                    closestDepthHit = actualDistMeters;
+                    
+                    // Refine the exact parallax shift using the actual depth found
+                    float refinedParallax = (eyeSeparation * gFocalLengthPixels) / actualDistMeters;
+                    bestSourceCoord = nonDomLocalCoord + vec2(searchDir * refinedParallax, 0.0);
+                    foundMatch = true;
+                }
+            }
+        }
+    }
+    
+    // If no match found, rely on spatial fallback based on neighboring pixels' parallax
+    // (This automatically fills in disocclusions/holes with background data)
+    if (!foundMatch) {
+         // Convert non-dominant coordinate back to dominant global
+         vec2 fallbackCoord = nonDomLocalCoord + vec2(searchDir * 0.0, 0.0); // 0 parallax fallback
+         if (isLeftNonDom) fallbackCoord.x += float(halfWidth);
+         else fallbackCoord.x -= float(halfWidth);
+         return fallbackCoord; 
+    }
+    
+    // Convert resolved optimal coordinate to global dominant coordinate
+    vec2 finalSourceGlobal = bestSourceCoord;
+    if (isLeftNonDom) finalSourceGlobal.x += float(halfWidth);
+    else finalSourceGlobal.x -= float(halfWidth);
+    
+    return finalSourceGlobal;
+}
+
 // Shared reprojection algorithm used by both blending and reprojection modes
 bool performReprojection(ivec2 otherViewCoord, float depth, float dist, float radius, 
                          float borderThickness, bool isLeftView, vec2 pixelPos, 
@@ -835,20 +911,19 @@ bool performReprojection(ivec2 otherViewCoord, float depth, float dist, float ra
         float warpStrengthVal = selectWarpStrength(warpMode, dist, radius, borderThickness,
                                                     depth, pixelPos, normal, time);
         
-        // Apply the warp
         if (warpStrengthVal > 0.001) {
             vec2 currentLocalCoord = vec2(gl_LaunchIDEXT.x % halfWidth, gl_LaunchIDEXT.y);
-            
-            // Execute 1D Relief Search
-            dstFullF = findSourceViaReliefSearch(currentLocalCoord, isLeftView);
+                
+            // Execute Advanced DIBR Synthesis
+            dstFullF = synthesizeCoordinateAdvanced(currentLocalCoord, isLeftView);
             dominantCoord = ivec2(dstFullF);
-            
+                
             if (dominantEye == rightEye) {
                 dominantCoord.x = max(halfWidth, min(dominantCoord.x, int(gl_LaunchSizeEXT.x) - 1));
             } else {
                 dominantCoord.x = max(0, min(dominantCoord.x, halfWidth - 1));
             }
-            
+                
             skipWarping = !depthNeighborhoodStable(dominantCoord, reprojCheckSize, reprojMaxDepthDiffMeters);
         }
         
@@ -951,8 +1026,25 @@ void blendRaytracedAndReprojected(float blendFactor, ivec2 otherViewCoord, float
     float halfDiagonal = length(eyeCenter);
     float normalizedDist = clamp(pixelDist / halfDiagonal, 0.0, 1.0);
     
-    // Adaptive mod: center = 10 (more raytracing), edges = 2 (more balanced)
-    float modRange = mix(10.0, 2.0, normalizedDist);
+    // Discrete steps based on distance bands
+    float modRange;
+    if (normalizedDist < 0.1) {
+        modRange = 100.0;  // 1% reproject, 99% raytracing at center
+    } else if (normalizedDist < 0.2) {
+        modRange = 50.0;  // 2% reproject, 98% raytracing
+    } else if (normalizedDist < 0.3) {
+        modRange = 25.0;  // 2% reproject, 98% raytracing
+    } else if (normalizedDist < 0.4) {
+        modRange = 20.0;  // 2% reproject, 98% raytracing
+    } else if (normalizedDist < 0.5) {
+        modRange = 10.0;  // 3% reproject, 97% raytracing
+    } else if (normalizedDist < 0.7) {
+        modRange = 5.0;   // 20% reproject, 80% raytracing
+    } else if (normalizedDist < 0.9) {
+        modRange = 2.0;   // 50% reproject, 50% raytracing
+    } else {
+        modRange = 2.0;   // 50% reproject, 50% raytracing at edges
+    }
     
     // Apply spatial dither pattern
     uint ditherSum = uint(gl_LaunchIDEXT.x) + uint(gl_LaunchIDEXT.y);
@@ -969,16 +1061,12 @@ void blendRaytracedAndReprojected(float blendFactor, ivec2 otherViewCoord, float
             vec4 storedNormal = imageLoad(gNormal, otherViewCoord);
             normal = storedNormal.rgb * 2.0 - 1.0;
         }
-        
+        debugColor = 3;
         performReprojection(otherViewCoord, depth, dist, radius, borderThickness, 
                           isLeftView, pixelPos, time, normal);
     }
-    else {
     // If ditherPattern != 0, return and let default raytracing in main() handle it
-    //    debugColor = 0; // Raytrace
-    }
 }
-
 
 bool isInDisparityZone(int pixelX, float depth, bool isLeftView) {
     const float OCCLUSION_ANGLE_DEG = 8.0;
@@ -1206,7 +1294,7 @@ void main()
             blendRaytracedAndReprojected(blendAmount, otherViewCoord, depth,
                                             parallaxPixels, dist, radius, isLeftView,
                                             baseBorderThickness, adjustedPixelPos, seed);
-            if (!doDebug && debugColor != 0) { // if nor raytrace, gambiarra
+            if (!doDebug && debugColor != 0) { // if not raytrace and not debug, return
                 return; // Skip raytracing if reprojection was used and we're not debugging
             }
         }
@@ -1215,11 +1303,13 @@ void main()
   
   if (doDebug && pc.passId == 1){
     if(debugColor == 1) {
-        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 0.0, 0.0, 1.0)); // Red for reprojection
+        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 0.0, 0.0, 1.0)); // Red-reprojection
+    } else if (debugColor == 2) {
+        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 1.0, 1.0, 1.0)); // White-max depth reproj.
     } else if (debugColor == 0) {
-        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 1.0, 1.0)); // Blue for raytracing
+        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 1.0, 1.0)); // Blue-raytracing
     } else if (debugColor == 3) {
-        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 1.0, 0.0, 1.0)); // Yellow for blended Reprojection
+        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 1.0, 0.0, 1.0)); // Yellowish-blended Reproj.
     }
     return;
   }
