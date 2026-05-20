@@ -120,6 +120,14 @@ float upperDepthThreshold = 0.5;    // Quad 1
 float leftDepthThreshold =  1.0;    // Quad 2
 float rightDepthThreshold =  1.0;   // Quad 0
 float bottomDepthThreshold =  2.5;  // Quad 3
+/*
+    0 = Raytrace, 
+    1 = normal reprojected mid range, 
+    2 = normal reprojected max depth;
+    3 = blended-reprojected
+*/
+int debugColor = 0;
+
 
 vec2 uv;
 vec2 ndc;
@@ -813,40 +821,22 @@ float calculateReprojectionConfidence(ivec2 coord, float depth, float parallax) 
     return depthConfidence * parallaxConfidence; // Combine confidences
 }
 
-
-bool reprojectPixel(
-  float pixelRand, ivec2 otherViewCoord, float depth, 
-  float probabilityFactor, float disparityPixels, float dist, float radius, 
-  bool isLeftView, float borderThickness
-) {
+// Shared reprojection algorithm used by both blending and reprojection modes
+bool performReprojection(ivec2 otherViewCoord, float depth, float dist, float radius, 
+                         float borderThickness, bool isLeftView, vec2 pixelPos, 
+                         float time, vec3 normal) {
     bool reprojectionSuccess = false;
     ivec2 dominantCoord = otherViewCoord;
-    bool skipRayTrace = false;
-
-    // --- ADD THE MISSING DECLARATIONS HERE ---
     bool skipWarping = false;
     vec2 dstFullF = vec2(otherViewCoord) + vec2(0.5);
     
     if (depth < maxDepthThreshold) {
-      // Get pixel position for fluid warping
-      vec2 pixelPos = vec2(gl_LaunchIDEXT.xy);
-      float time = float(pc.frame) * 0.01; // Animate over time
-      vec3 normal  = vec3(0.0, 0.0, 1.0);
-
-      // Only trace albedo for warp modes that actually need normals
-      if (warpMode == WARP_MODE_ADAPTIVE || warpMode == WARP_MODE_MULTIFREQ) {
-          // Read normal from already-rendered dominant eye instead of tracing a new ray
-          vec4 storedNormal = imageLoad(gNormal, otherViewCoord);
-          normal = storedNormal.rgb * 2.0 - 1.0; // Unpack from [0,1] to [-1,1]
-      }
-      
-      float warpStrengthVal = selectWarpStrength(warpMode, dist, radius, borderThickness,
-                                                  depth, pixelPos, normal, time);
+        // Get warp strength
+        float warpStrengthVal = selectWarpStrength(warpMode, dist, radius, borderThickness,
+                                                    depth, pixelPos, normal, time);
         
-      
-      // Apply the warp
-      // Apply the warp
-      if (warpStrengthVal > 0.001) {
+        // Apply the warp
+        if (warpStrengthVal > 0.001) {
             vec2 currentLocalCoord = vec2(gl_LaunchIDEXT.x % halfWidth, gl_LaunchIDEXT.y);
             
             // Execute 1D Relief Search
@@ -860,81 +850,88 @@ bool reprojectPixel(
             }
             
             skipWarping = !depthNeighborhoodStable(dominantCoord, reprojCheckSize, reprojMaxDepthDiffMeters);
-      }
-      
-      // Try to sample from warped coordinate
-      // ADD skipWarping CHECK HERE
-      if (!skipWarping && dominantCoord.x >= 0 && dominantCoord.x < int(gl_LaunchSizeEXT.x) &&
-          dominantCoord.y >= 0 && dominantCoord.y < int(gl_LaunchSizeEXT.y)) {
-          
-          vec4 colorAccum = imageLoad(image, dominantCoord);
-          
-          if (doDebug){
-              imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 0.0, 0.0, 1.0));
-          } else {
-              imageStore(image, ivec2(gl_LaunchIDEXT.xy), colorAccum);
-          }
-          reprojectionSuccess = true;
-      }
-      
-      // Fallback to world-space reprojection if warping fails
-      if (!reprojectionSuccess) {
-          vec3 worldPos = reprojectWorldPosition(vec2(otherViewCoord), depth, dominantViewInv, dominantProjInv);
-          vec4 currentClip = nonDomProj * (nonDomView * vec4(worldPos, 1.0));
+        }
+        
+        // Try to sample from warped coordinate
+        if (!skipWarping && dominantCoord.x >= 0 && dominantCoord.x < int(gl_LaunchSizeEXT.x) &&
+            dominantCoord.y >= 0 && dominantCoord.y < int(gl_LaunchSizeEXT.y)) {
+            
+            vec4 colorAccum = imageLoad(image, dominantCoord);
+            imageStore(image, ivec2(gl_LaunchIDEXT.xy), colorAccum);
+            reprojectionSuccess = true;
+            /*
+            if (doDebug) {
+                imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 1.0, 0.0, 1.0)); // Green for warped reproj
+            }
+            */
+        }
+        
+        // Fallback to world-space reprojection if warping fails
+        if (!reprojectionSuccess) {
+            vec3 worldPos = reprojectWorldPosition(vec2(otherViewCoord), depth, dominantViewInv, dominantProjInv);
+            vec4 currentClip = nonDomProj * (nonDomView * vec4(worldPos, 1.0));
 
-          if (currentClip.w > 0.0) {
-              vec3 ndc = currentClip.xyz / currentClip.w;
-              vec2 currentScreen = (ndc.xy * 0.5 + 0.5) * vec2(gl_LaunchSizeEXT.xy);
-              ivec2 reprojCoord = ivec2(currentScreen);
-              
-              // Ensure coordinates are in the correct viewport
-              if (isLeftView) {
-                  reprojCoord.x = max(0, min(reprojCoord.x, halfWidth - 1));
-              } else {
-                  reprojCoord.x = max(halfWidth, min(reprojCoord.x, int(gl_LaunchSizeEXT.x) - 1));
-              }
-              
-              if (reprojCoord.x >= 0 && reprojCoord.x < int(gl_LaunchSizeEXT.x) &&
-                  reprojCoord.y >= 0 && reprojCoord.y < int(gl_LaunchSizeEXT.y)) 
-              {
-                  vec4 reprojColor = imageLoad(image, reprojCoord);
-                  if (doDebug){
-                      imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 0.5, 0.0, 1.0));
-                  }else{
+            if (currentClip.w > 0.0) {
+                vec3 ndc = currentClip.xyz / currentClip.w;
+                vec2 currentScreen = (ndc.xy * 0.5 + 0.5) * vec2(gl_LaunchSizeEXT.xy);
+                ivec2 reprojCoord = ivec2(currentScreen);
+                
+                // Ensure coordinates are in the correct viewport
+                if (isLeftView) {
+                    reprojCoord.x = max(0, min(reprojCoord.x, halfWidth - 1));
+                } else {
+                    reprojCoord.x = max(halfWidth, min(reprojCoord.x, int(gl_LaunchSizeEXT.x) - 1));
+                }
+                
+                if (reprojCoord.x >= 0 && reprojCoord.x < int(gl_LaunchSizeEXT.x) &&
+                    reprojCoord.y >= 0 && reprojCoord.y < int(gl_LaunchSizeEXT.y)) 
+                {
+                    vec4 reprojColor = imageLoad(image, reprojCoord);
                     imageStore(image, ivec2(gl_LaunchIDEXT.xy), reprojColor);
-                  }
-                  //vec4 reprojAlbedo = imageLoad(gAlbedo, reprojCoord);
-                  //imageStore(gAlbedo, ivec2(gl_LaunchIDEXT.xy), reprojAlbedo);
-                  
-                  //vec4 reprojNormal = imageLoad(gNormal, reprojCoord);
-                  //imageStore(gNormal, ivec2(gl_LaunchIDEXT.xy), reprojNormal);
-                  reprojectionSuccess = true;
-                  
-                  //imageStore(gDisparity, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 1.0, 1.0)); // Blue for fallback
-              }
-          }
-      }
-  }
-  // Final fallback: simple copy without warping
-  if (!reprojectionSuccess) {
-      vec4 otherColor = imageLoad(image, otherViewCoord);
-      if (doDebug){
-              imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 0.7, 0.0, 1.0));
-    }else{
-    imageStore(image, ivec2(gl_LaunchIDEXT.xy), otherColor);
+                    reprojectionSuccess = true;
+                    /*
+                    if (doDebug) {
+                        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0.5, 1.0, 0.0, 1.0)); // Light green for world reproj
+                    }
+                    */
+                }
+            }
+        }
     }
-      //vec4 otherAlbedo = imageLoad(gAlbedo, otherViewCoord);
-      //imageStore(gAlbedo, ivec2(gl_LaunchIDEXT.xy), otherAlbedo);
-      
-      //vec4 otherNormal = imageLoad(gNormal, otherViewCoord);
-      //imageStore(gNormal, ivec2(gl_LaunchIDEXT.xy), otherNormal);
-      // imageStore(gDisparity, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 1.0, 1.0)); // Blue for reprojection
-      reprojectionSuccess = true;
+    
+    // Final fallback: simple copy without warping
+    if (!reprojectionSuccess) {
+        vec4 otherColor = imageLoad(image, otherViewCoord);
+        imageStore(image, ivec2(gl_LaunchIDEXT.xy), otherColor);
+        reprojectionSuccess = true;
+        
+        if (doDebug) {
+            imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 1.0, 1.0, 1.0)); // Cyan for simple copy
+        }
+    }
+    
+    return reprojectionSuccess;
+}
 
-  }
-  //imageStore(gDisparity, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 0.0, 0.0, 1.0));
-  
-  return skipRayTrace;
+
+// Updated reprojectPixel to use shared reprojection
+bool reprojectPixel(
+  float pixelRand, ivec2 otherViewCoord, float depth, 
+  float probabilityFactor, float disparityPixels, float dist, float radius, 
+  bool isLeftView, float borderThickness
+) {
+    vec2 pixelPos = vec2(gl_LaunchIDEXT.xy);
+    float time = float(pc.frame) * 0.01;
+    vec3 normal = vec3(0.0, 0.0, 1.0);
+    
+    // Load normal if needed
+    if (warpMode == WARP_MODE_ADAPTIVE || warpMode == WARP_MODE_MULTIFREQ) {
+        vec4 storedNormal = imageLoad(gNormal, otherViewCoord);
+        normal = storedNormal.rgb * 2.0 - 1.0;
+    }
+    debugColor = 1; // Reprojection
+    return performReprojection(otherViewCoord, depth, dist, radius, borderThickness, 
+                             isLeftView, pixelPos, time, normal);
 }
 
 
@@ -942,61 +939,47 @@ void blendRaytracedAndReprojected(float blendFactor, ivec2 otherViewCoord, float
                                   float disparityPixels, float dist, float radius, 
                                   bool isLeftView, float borderThickness, ivec2 adjustedPixelPos, uint seed) {
     
-    // Reprojected sample
-    ivec2 reprojCoord = otherViewCoord;
-    float parallaxPixels = calculateParallaxPixelsValidated(depth);
-    float parallaxShift = parallaxPixels * blendFactor;
-    float warpDirection = isLeftView ? 1.0 : -1.0;
-    reprojCoord.x += int(warpDirection * parallaxShift);
-
-    // Clamp to correct half
-    if (dominantEye == rightEye) {
-        reprojCoord.x = max(halfWidth, min(reprojCoord.x, int(gl_LaunchSizeEXT.x) - 1));
-    } else {
-        reprojCoord.x = max(0, min(reprojCoord.x, halfWidth - 1));
+    // Calculate normalized distance from center (0 = center, 1 = edge)
+    vec2 eyeCenter = vec2(float(halfWidth) * 0.5, float(gl_LaunchSizeEXT.y) * 0.5);
+    float eyeLocalX = isLeftView
+        ? float(gl_LaunchIDEXT.x)
+        : float(int(gl_LaunchIDEXT.x) - halfWidth);
+    vec2 eyePos = vec2(eyeLocalX, float(gl_LaunchIDEXT.y));
+    float pixelDist = length(eyePos - eyeCenter);
+    
+    // Normalize distance to [0, 1] range
+    float halfDiagonal = length(eyeCenter);
+    float normalizedDist = clamp(pixelDist / halfDiagonal, 0.0, 1.0);
+    
+    // Adaptive mod: center = 10 (more raytracing), edges = 2 (more balanced)
+    float modRange = mix(10.0, 2.0, normalizedDist);
+    
+    // Apply spatial dither pattern
+    uint ditherSum = uint(gl_LaunchIDEXT.x) + uint(gl_LaunchIDEXT.y);
+    uint ditherPattern = ditherSum % uint(max(1u, uint(modRange)));
+    
+    if (ditherPattern == 0u) {
+        // Use reprojection via shared algorithm
+        vec2 pixelPos = vec2(gl_LaunchIDEXT.xy);
+        float time = float(pc.frame) * 0.01;
+        vec3 normal = vec3(0.0, 0.0, 1.0);
+        
+        // Load normal if needed
+        if (warpMode == WARP_MODE_ADAPTIVE || warpMode == WARP_MODE_MULTIFREQ) {
+            vec4 storedNormal = imageLoad(gNormal, otherViewCoord);
+            normal = storedNormal.rgb * 2.0 - 1.0;
+        }
+        
+        performReprojection(otherViewCoord, depth, dist, radius, borderThickness, 
+                          isLeftView, pixelPos, time, normal);
     }
-
-    vec3 reprojColor = vec3(0.0);
-    if (reprojCoord.x >= 0 && reprojCoord.x < int(gl_LaunchSizeEXT.x) &&
-        reprojCoord.y >= 0 && reprojCoord.y < int(gl_LaunchSizeEXT.y)) {
-        reprojColor = imageLoad(image, reprojCoord).rgb;
-    }
-
-    // Raytraced color stays at the current pixel
-    float primaryT_dummy;
-    vec3 raytracedColor = samplePixel(seed, adjustedPixelPos, false, primaryT_dummy);
-    traceAlbedo(adjustedPixelPos);
-
-    // Bias toward raytrace for closer and more centered pixels
-    float worldDepthMeters = getWorldDepth(depth);
-
-    // closer => more raytrace, farther => more reproj
-    float depthBias = smoothstep(1.0, 6.0, worldDepthMeters);
-
-    // centered => more raytrace, outer transition => more reproj
-    float radialBias = smoothstep(radius, radius + borderThickness, dist);
-
-    // Keep your existing confidence
-    float confidence = calculateReprojectionConfidence(otherViewCoord, depth, disparityPixels);
-
-    float neighborhoodBias = neighborhoodRaytraceBias(reprojCoord, 5, 1.5);
-    // Final probability of choosing reprojection
-    float reprojProb;
-    //reprojProb =  = blendFactor * confidence * depthBias * radialBias
-    reprojProb *= (1.0 - neighborhoodBias);
-
-    // Dither: choose one or the other per pixel
-    uint noiseSeed = seed ^ uint(adjustedPixelPos.x * 1973 + adjustedPixelPos.y * 9277 + pc.frame * 26699);
-    float r = rand(noiseSeed);
-
-    vec3 finalColor = (r < reprojProb) ? reprojColor : raytracedColor;
-
-    if (doDebug) {
-        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 1.0, 1.0, 1.0));
-    } else {
-        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(finalColor, 1.0));
+    else {
+    // If ditherPattern != 0, return and let default raytracing in main() handle it
+    //    debugColor = 0; // Raytrace
     }
 }
+
+
 bool isInDisparityZone(int pixelX, float depth, bool isLeftView) {
     const float OCCLUSION_ANGLE_DEG = 8.0;
     float occlusionFraction = OCCLUSION_ANGLE_DEG / fovDegrees;
@@ -1201,25 +1184,45 @@ void main()
 
         bool insideBaseBorder = (dist > radius) && (dist <= radius + baseBorderThickness);
 
+        
+        if ((transitionFactor >= 0.4 || depth > maxDepthThreshold) && pc.mode != 2) {
+            reprojectPixel(0.0, otherViewCoord, depth, 0.0, parallaxPixels,
+                            dist, radius, isLeftView, borderThickness);
+            //return;
+            
+            if (!doDebug) {
+                return; // Skip raytracing if reprojection was used and we're not debugging
+            }
+            if (depth > maxDepthThreshold){
+                debugColor = 2; // for max depth-based reprojection
+            }else {
+                debugColor = 1; //reprojection
+            }
+        }
         // First: blend if we're in the transition zone or inside the base border
-        if (((transitionFactor > 0.1 && transitionFactor < 0.4) || insideBaseBorder) && pc.mode != 2) {
+        else if (((transitionFactor > 0.1 && transitionFactor < 0.4) || insideBaseBorder) && pc.mode != 2) {
             float blendAmount = max(transitionFactor, insideBaseBorder ? 0.1 : 0.0);
 
             blendRaytracedAndReprojected(blendAmount, otherViewCoord, depth,
                                             parallaxPixels, dist, radius, isLeftView,
                                             baseBorderThickness, adjustedPixelPos, seed);
-            return;
-        }
-
-        // Then: full reprojection only outside the transition zone
-        if ((transitionFactor >= 0.4 || depth > maxDepthThreshold) && pc.mode != 2) {
-            reprojectPixel(0.0, otherViewCoord, depth, 0.0, parallaxPixels,
-                            dist, radius, isLeftView, borderThickness);
-            return;
+            if (!doDebug && debugColor != 0) { // if nor raytrace, gambiarra
+                return; // Skip raytracing if reprojection was used and we're not debugging
+            }
         }
     }
   }
-
+  
+  if (doDebug && pc.passId == 1){
+    if(debugColor == 1) {
+        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 0.0, 0.0, 1.0)); // Red for reprojection
+    } else if (debugColor == 0) {
+        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 1.0, 1.0)); // Blue for raytracing
+    } else if (debugColor == 3) {
+        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 1.0, 0.0, 1.0)); // Yellow for blended Reprojection
+    }
+    return;
+  }
 
   /* --- Path tracing for all other cases --- */
   vec3 contribAccum = vec3(0.0);
@@ -1236,11 +1239,11 @@ void main()
 
   /* --- Store results --- */
   if(pc.frame == 0) {
-    if (doDebug){
-        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 1.0, 1.0));
-          }else{
-    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(contribAccum, 1.f));
-    }
+    //if (doDebug){
+    //    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 1.0, 1.0));
+    //}else{
+        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(contribAccum, 1.f));
+    //}
     // G-buffers - only trace when needed
     if (isDominantView || (isNotDominantView && !doReprojection)) {
       traceAlbedo(adjustedPixelPos);
@@ -1281,10 +1284,10 @@ void main()
     } else {
         float a = 1.0f / float(pc.frame + 1);
         vec3 old_color = imageLoad(image, ivec2(gl_LaunchIDEXT.xy)).xyz;
-        if (doDebug && pc.passId == 1){
-              imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 1.0, 1.0));
-          }else{
+        //if (doDebug && pc.passId == 1){
+        //      imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 1.0, 1.0));
+        //  }else{
         imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(mix(old_color, contribAccum, a), 1.f));
-        }
+        //}
     }
 }

@@ -1646,7 +1646,9 @@ namespace nvvkhl
 					ImGui::Text("Denoised");
 					ImGui::Image(m_gBuffers->getDescriptorSet(eGbufDenoised), tumbnailSize);*/
 				}
-				ImGui::SliderFloat("Middle Radius", &m_middleRadius, 0.1f, 1.0f);
+				if (ImGui::SliderFloat("Middle Radius", &m_middleRadius, 0.1f, 1.0f)) {
+					reset = true;
+				}
 				ImGui::SliderInt("debug", &m_settings.doDebug, 0, 1);
 				//if (ImGui::SliderFloat("Eye Separation (m)", &m_xrEyeSeparation, 0.05f, 0.075f, "%.3f")) {
 				//	resetFrame(); // Flush accumulation to avoid ghosting
