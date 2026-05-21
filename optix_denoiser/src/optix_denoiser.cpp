@@ -106,11 +106,12 @@
 static constexpr float HOST_MAX_COMFORTABLE_PARALLAX_ANGLE = 1.5f; // degrees
 static constexpr float HOST_VIEWER_DISTANCE = 0.5f; // meters
 
-static const char* sceneNames[] = { "Sponza", "Chess" };
+static const char* sceneNames[] = { "Sponza", "Chess", "City" };
 static const char* sceneFiles[] = {
 	"media/sponza/glTF/Sponza.gltf",
 	//"media/scenes/ABeautifulGame/glTF/ABeautifulGame.gltf"
-	"media/scenes/ABeautifulGameCopy/Untitled.gltf"
+	"media/scenes/ABeautifulGameCopy/Untitled.gltf",
+	"media/scenes/City/scene.gltf"
 };
 constexpr int sceneCount = sizeof(sceneNames) / sizeof(sceneNames[0]);
 
@@ -924,7 +925,7 @@ namespace nvvkhl
 			glm::vec3 envRotation{ 0.F };
 			bool denoiseApply{ true };
 			bool denoiseFirstFrame{ true };
-			int denoiseEveryNFrames{ 500 };
+			int denoiseEveryNFrames{ 10 };
 			int mode{ 0 }; // 0 = R-dominant, 1 = L-dominant, -1 = no reprojection
 			bool pointLightEnabled{ true };
 			glm::vec3 pointLightPos{ 5.4f, 2.1f, -0.5f };        // above scene by default
@@ -1387,7 +1388,11 @@ namespace nvvkhl
 				setPointLightState(m_frameInfo, true);
 				m_settings.pointLightEnabled = true;
 				resetCamera();
-
+			}
+			else if (strcmp(sceneNames[sceneIndex], "City") == 0) {
+				setPointLightState(m_frameInfo, true);
+				m_settings.pointLightEnabled = false;
+				resetCamera();
 			}
 			else {
 				setPointLightState(m_frameInfo, true);
@@ -2936,13 +2941,12 @@ namespace nvvkhl
 				<< " - " << modeText << " - " << circleDegree << " - " << sceneName << std::endl;
 		}
 
-		void createScene(const std::string& filename)
+		void createScene(const std::string& filename, float sceneScale = 1.0f)
 		{
 			m_scene->load(filename);
 
 			// ------- Apply a uniform scene scale here -------
 			// Change this value to scale the whole glTF scene (e.g. 0.5 = half size, 2.0 = double size).
-			float sceneScale = 1.0f;
 			// if scene is beautifulGame, use scale 3.0f, otherwise, 1.0f
 			if (filename.find("Untitled") != std::string::npos) {
 				sceneScale = 7.0f;

@@ -377,12 +377,12 @@ void traceAlbedo(vec2 adjustedPixelPos)
   gUnpackedAlbedo = unpackUnorm4x8(payloadGbuf.packAlbedo);
   gUnpackedNormal = decompress_unit_vec(payloadGbuf.packNormal);
 }
-
+/*
 float calculateParallaxPixels(float normalizedDepth) {
     float worldDist = getWorldDepth(normalizedDepth);
     return (eyeSeparation * gFocalLengthPixels) / worldDist;
 }
-
+*/
 // Calculate parallax in pixels based on depth general with fov
 // First calculate raw parallax
 // Calculate the angle
@@ -431,24 +431,6 @@ float calculateParallaxPixelsValidated(float depth) {
     return clamp(rawParallax, minComfortable, maxComfortable);
 }
 
-
-float calculateSmoothTransitionFactor(float depth, float dist, float radius, float borderThickness) {
-    // Normalize distance from transition start
-    float distanceFactor = smoothstep(radius, radius + borderThickness, dist);
-    
-    // Depth influence - distant objects transition earlier
-    float depthFactor = smoothstep(nearDistLinear, farDistLinear * 0.7, getWorldDepth(depth));
-    
-    // Combine with non-linear response for smoother transition
-    float combined = distanceFactor * depthFactor;
-    
-    // Apply easing function for smoother transition
-    return smoothstep(0.0, 1.0, combined);
-}
-
-bool isInTransitionZone(float dist, float radius, float borderThickness) {
-    return (dist >= radius) && (dist <= radius + borderThickness);
-}
 
 float warpStrength(float dist, float radius, float borderThickness) {
     if (dist < radius) return 0.0;
@@ -658,6 +640,7 @@ float selectWarpStrength(int mode, float dist, float radius, float borderThickne
     }
 }
 // Foreground-Biased 1D Relief Search
+/*
 vec2 findSourceViaReliefSearch(vec2 nonDomLocalCoord, bool isLeftNonDom) {
     float searchDir = isLeftNonDom ? -1.0 : 1.0;
     
@@ -703,6 +686,7 @@ vec2 findSourceViaReliefSearch(vec2 nonDomLocalCoord, bool isLeftNonDom) {
     
     return finalSourceGlobal;
 }
+*/
 
 // Pure 3D reprojection: unproject → project to other view
 vec2 reprojectVia3D(vec2 screenPos, float depthNorm, mat4 fromViewInv, mat4 fromProjInv,
@@ -724,42 +708,6 @@ vec2 reprojectVia3D(vec2 screenPos, float depthNorm, mat4 fromViewInv, mat4 from
     vec2 otherScreen = (otherNdc.xy * 0.5 + 0.5) * vec2(gl_LaunchSizeEXT.xy);
     
     return otherScreen;
-}
-float neighborhoodRaytraceBias(ivec2 center, int M, float maxDeltaMeters)
-{
-    int halfM = M / 2;
-    float minD = 1e30;
-    float maxD = -1e30;
-    int valid = 0;
-
-    ivec2 imgSize = ivec2(gl_LaunchSizeEXT.xy);
-
-    for (int oy = -halfM; oy <= halfM; ++oy) {
-        for (int ox = -halfM; ox <= halfM; ++ox) {
-            ivec2 s = center + ivec2(ox, oy);
-            if (s.x < 0 || s.x >= imgSize.x || s.y < 0 || s.y >= imgSize.y)
-                continue;
-
-            float dnorm = imageLoad(gDepth, s).x;
-            if (dnorm <= 0.0)
-                continue;
-
-            float d = getWorldDepth(dnorm);
-            minD = min(minD, d);
-            maxD = max(maxD, d);
-            valid++;
-        }
-    }
-
-    if (valid < 5)
-        return 1.0; // not enough data, be conservative
-
-    float delta = maxD - minD;
-
-    // Below threshold -> no extra bias.
-    // Above threshold -> rapidly favor raytrace.
-    float t = smoothstep(maxDeltaMeters, maxDeltaMeters * 2.0, delta);
-    return t;
 }
 
 // Return true when the MxM neighborhood around 'center' has max-min depth <= threshold
@@ -784,6 +732,7 @@ bool depthNeighborhoodStable(ivec2 center, int M, float maxDeltaMeters)
             minD = min(minD, d);
             maxD = max(maxD, d);
             valid++;
+            if ((maxD - minD) > maxDeltaMeters) return false;
         }
     }
 
@@ -827,7 +776,7 @@ float calculateReprojectionConfidence(ivec2 coord, float depth, float parallax) 
 vec2 synthesizeCoordinateAdvanced(vec2 nonDomLocalCoord, bool isLeftNonDom) {
     float searchDir = isLeftNonDom ? -1.0 : 1.0;
     
-    int steps = 24; // High quality search
+    int steps = 16; // High quality search
     float maxSearchMeters = 50.0; // Search depth up to 50 meters
     
     float closestDepthHit = 1e30; 
@@ -874,6 +823,7 @@ vec2 synthesizeCoordinateAdvanced(vec2 nonDomLocalCoord, bool isLeftNonDom) {
                     float refinedParallax = (eyeSeparation * gFocalLengthPixels) / actualDistMeters;
                     bestSourceCoord = nonDomLocalCoord + vec2(searchDir * refinedParallax, 0.0);
                     foundMatch = true;
+                    break;
                 }
             }
         }
@@ -895,6 +845,50 @@ vec2 synthesizeCoordinateAdvanced(vec2 nonDomLocalCoord, bool isLeftNonDom) {
     else finalSourceGlobal.x -= float(halfWidth);
     
     return finalSourceGlobal;
+}
+
+// Calculates allowable error in meters based on Mochizuki et al. (2012)
+// "The magnitude of stereopsis in peripheral visual fields"
+float calculatePerceptualTolerance(float worldDepthMeters, float pixelDistFromCenter, float focalLengthPxls, int quadrant) {
+    // 1. Calculate eccentricity (degrees from the fovea/center)
+    //float eccentricityRadians = atan(pixelDistFromCenter / focalLengthPxls);
+    //float eccentricityDegrees = degrees(eccentricityRadians);
+    float eccentricityRatio = pixelDistFromCenter / focalLengthPxls; 
+    
+    // 2. Map eccentricity to human stereoacuity in arcseconds
+    // Based on the paper's means: 10° = 474, 20° = 725, 30° = 1223
+    float arcsecs = 300.0; // Baseline high-acuity fovea bound
+    // Precomputed tangent ratios for the paper's degree breakpoints:
+    // tan(10°) ≈ 0.176
+    // tan(20°) ≈ 0.364
+    // tan(30°) ≈ 0.577
+    /* Since we only do depth calculating outside the 30 degrees from center*/
+    if (eccentricityRatio <= 0.577) { // equivalente a comparar arctang a graus, economiza conta
+        // --- QUADRANT RULE ---
+        // Paper states: Stereopsis in the lower visual field (Quadrant 3) is "clearer" at 30°.
+        // Clearer = Lower threshold (more sensitive to errors, allows less discrepancy).
+        float t = (eccentricityRatio - 0.364) / (0.577 - 0.364);
+        float maxArcSecs = (quadrant == 3) ? 950.0 : 1223.0; // Stricter in the lower visual field
+        arcsecs = mix(725.0, maxArcSecs, t);
+    } 
+    else {
+        // Beyond 30°, stereoacuity heavily degrades up to the 3600 limit stated in the conclusion
+        float t = clamp((eccentricityRatio - 0.577) / (1.0 - 0.577), 0.0, 1.0);
+        float baseArcSecs = (quadrant == 3) ? 950.0 : 1223.0;
+        arcsecs = mix(baseArcSecs, 3600.0, t);
+    }
+    
+    // 3. Convert arcseconds to linear tolerance in meters (Small angle approximation)
+    // 1 arcsecond = 1 / 3600 of a degree
+    // 1 degree = PI / 180 radians
+    // 1 arcsecond = 0.000004848136811 radians
+    // Because the angle is so small, tan(radians) == radians.
+    float allowedVisualAngleRadians = arcsecs * 0.000004848137;
+    
+    // Your calculation: arc length = angle * distance
+    float toleranceMeters = worldDepthMeters * allowedVisualAngleRadians;
+    
+    return toleranceMeters;
 }
 
 // Shared reprojection algorithm used by both blending and reprojection modes
@@ -924,7 +918,28 @@ bool performReprojection(ivec2 otherViewCoord, float depth, float dist, float ra
                 dominantCoord.x = max(0, min(dominantCoord.x, halfWidth - 1));
             }
                 
-            skipWarping = !depthNeighborhoodStable(dominantCoord, reprojCheckSize, reprojMaxDepthDiffMeters);
+            // --- INTEGRATE CLINICAL DATA ---
+            float actualDepthMeters = getWorldDepth(depth);
+            int quadrant = getEyeQuadrant();
+                
+            float dynamicToleranceMeters = calculatePerceptualTolerance(
+                actualDepthMeters, 
+                dist, 
+                gFocalLengthPixels,
+                quadrant
+            );
+            
+            // Check if the neighborhood is stable based on perceptual constraints
+            skipWarping = !depthNeighborhoodStable(dominantCoord, reprojCheckSize, dynamicToleranceMeters);
+            
+            // --- FORCE WARPING IN THE PERIPHERY ---
+            // If the depth neighborhood is unstable (like a heavy occlusion border on the floor),
+            // but we are far in the periphery (dist > radius), the glitch from a strict skip
+            // looks much worse than a stretched reprojected pixel.
+            // So, in the outer boundary, we IGNORE the skip and force the warp anyway!
+            if (skipWarping && dist > radius * 0.8) {
+                skipWarping = false; // Override the strict cutoff
+            }
         }
         
         // Try to sample from warped coordinate
@@ -1010,10 +1025,10 @@ bool reprojectPixel(
 }
 
 
-void blendRaytracedAndReprojected(float blendFactor, ivec2 otherViewCoord, float depth, 
-                                  float disparityPixels, float dist, float radius, 
-                                  bool isLeftView, float borderThickness, ivec2 adjustedPixelPos, uint seed) {
-    
+void blendRaytracedAndReprojected(ivec2 otherViewCoord, 
+    float depth, float dist, float radius, bool isLeftView, 
+    float borderThickness, ivec2 adjustedPixelPos, uint seed) 
+    {
     // Calculate normalized distance from center (0 = center, 1 = edge)
     vec2 eyeCenter = vec2(float(halfWidth) * 0.5, float(gl_LaunchSizeEXT.y) * 0.5);
     float eyeLocalX = isLeftView
@@ -1029,17 +1044,17 @@ void blendRaytracedAndReprojected(float blendFactor, ivec2 otherViewCoord, float
     // Discrete steps based on distance bands
     float modRange;
     if (normalizedDist < 0.1) {
-        modRange = 100.0;  // 1% reproject, 99% raytracing at center
+        modRange = 128.0;  // 1% reproject, 99% raytracing at center
     } else if (normalizedDist < 0.2) {
-        modRange = 50.0;  // 2% reproject, 98% raytracing
+        modRange = 64.0;  // 2% reproject, 98% raytracing
     } else if (normalizedDist < 0.3) {
-        modRange = 25.0;  // 2% reproject, 98% raytracing
+        modRange = 32.0;  // 2% reproject, 98% raytracing
     } else if (normalizedDist < 0.4) {
-        modRange = 20.0;  // 2% reproject, 98% raytracing
+        modRange = 16.0;  // 2% reproject, 98% raytracing
     } else if (normalizedDist < 0.5) {
-        modRange = 10.0;  // 3% reproject, 97% raytracing
+        modRange = 8.0;  // 3% reproject, 97% raytracing
     } else if (normalizedDist < 0.7) {
-        modRange = 5.0;   // 20% reproject, 80% raytracing
+        modRange = 4.0;   // 20% reproject, 80% raytracing
     } else if (normalizedDist < 0.9) {
         modRange = 2.0;   // 50% reproject, 50% raytracing
     } else {
@@ -1048,7 +1063,9 @@ void blendRaytracedAndReprojected(float blendFactor, ivec2 otherViewCoord, float
     
     // Apply spatial dither pattern
     uint ditherSum = uint(gl_LaunchIDEXT.x) + uint(gl_LaunchIDEXT.y);
-    uint ditherPattern = ditherSum % uint(max(1u, uint(modRange)));
+    uint bitwiseMask = uint(modRange) - 1u;
+    uint ditherPattern = ditherSum & bitwiseMask;
+    //uint ditherPattern = ditherSum % uint(max(1u, uint(modRange)));
     
     if (ditherPattern == 0u) {
         // Use reprojection via shared algorithm
@@ -1291,8 +1308,8 @@ void main()
         else if (((transitionFactor > 0.1 && transitionFactor < 0.4) || insideBaseBorder) && pc.mode != 2) {
             float blendAmount = max(transitionFactor, insideBaseBorder ? 0.1 : 0.0);
 
-            blendRaytracedAndReprojected(blendAmount, otherViewCoord, depth,
-                                            parallaxPixels, dist, radius, isLeftView,
+            blendRaytracedAndReprojected(otherViewCoord, depth,
+                                            dist, radius, isLeftView,
                                             baseBorderThickness, adjustedPixelPos, seed);
             if (!doDebug && debugColor != 0) { // if not raytrace and not debug, return
                 return; // Skip raytracing if reprojection was used and we're not debugging
