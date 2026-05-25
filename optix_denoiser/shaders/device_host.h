@@ -26,11 +26,10 @@ struct PushConstant // total 32 bytes
   int instanceId; //  4 bytes
   int passId;    //  4 bytes
   float middleRadius; // optional override for reprojection radius (0 = auto) 4 bytes 
-  float pad_0; // per eye horizontal fov in degrees 4 bytes
+  float depthMode;
   int doDebug; // 4 bytes 0 off - 1 on
   int mode; 
   int showBlackScreen; // 4 bytes 0 off - 1 on
-  
 };
 
 #define MAX_NB_LIGHTS 1
@@ -78,7 +77,6 @@ struct FrameInfo // Total size 688 byte, 16*43
 	float halfWidthPixels;
 	float fovDegrees;
 	float fovRadians;
-
 };
 
 

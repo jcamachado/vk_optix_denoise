@@ -1418,15 +1418,15 @@ namespace nvvkhl
 				break;
 			case 1:
 				m_settings.enableReprojection = true;
-				m_middleRadius = 0.3f;
+				m_middleRadius = 30.0f;
 				break;
 			case 2:
 				m_settings.enableReprojection = true;
-				m_middleRadius = 0.45f;
+				m_middleRadius = 45.0f;
 				break;
 			case 3:
 				m_settings.enableReprojection = true;
-				m_middleRadius = 0.6f;
+				m_middleRadius = 60.0f;
 				break;
 			}
 
@@ -1651,7 +1651,7 @@ namespace nvvkhl
 					ImGui::Text("Denoised");
 					ImGui::Image(m_gBuffers->getDescriptorSet(eGbufDenoised), tumbnailSize);*/
 				}
-				if (ImGui::SliderFloat("Middle Radius", &m_middleRadius, 0.1f, 1.0f)) {
+				if (ImGui::SliderFloat("Middle Radius", &m_middleRadius, 1.0f, 150.0f)) {
 					reset = true;
 				}
 				ImGui::SliderInt("debug", &m_settings.doDebug, 0, 1);
@@ -2717,11 +2717,14 @@ namespace nvvkhl
 			const float maxAngleRad = glm::radians(HOST_MAX_COMFORTABLE_PARALLAX_ANGLE);
 			fi.maxComfortableParallaxPixels = 2.0f * fi.screenDistancePixels * tanf(maxAngleRad * 0.5f);
 
+			// Convert UI value to circle diameter in degrees: 10 units = 1 degree
+			// The radius is half the diameter TODO maybe fix name, radius might be confusing since it's actually diameter in degrees, but it will be converted to radius in pixels later
+			const float radiusInDegrees = middleRadiusPct / 2.0f;
+
+			// Convert degrees to pixels
 			const float pixelRange = (halfWidth < height) ? halfWidth : height;
-			const float pxToFoV = (pixelRange > 1e-6f) ? (fovDegrees / pixelRange) : 0.0f;
-			const float midRadius = middleRadiusPct * fovDegrees / 100.0f;
-			const float radiusDeg = midRadius * 0.5f * fovDegrees;
-			fi.reprojectionRadiusPixels = (pxToFoV > 1e-6f) ? (radiusDeg / pxToFoV) : 0.0f;
+			const float pixelsPerDegree = pixelRange / fovDegrees;
+			fi.reprojectionRadiusPixels = radiusInDegrees * pixelsPerDegree;
 
 			// Store the viewer distance in frameInfo for debugging/UI
 			// (you may need to add this field to FrameInfo struct)
@@ -3657,7 +3660,7 @@ namespace nvvkhl
 		uint64_t m_fenceValue{ 0U };
 #endif // NVP_SUPPORTS_OPTIX7 || NVP_SUPPORTS_OPTIX9
 		float m_blendFactor = 0.0f;
-		float m_middleRadius = 0.6f;
+		float m_middleRadius = 60.0f;
 		// XR related
 		// g_xrViews
 		// m_xrProjCached and m_cachedLeftProj/m_cachedRightProj
