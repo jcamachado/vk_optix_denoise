@@ -925,7 +925,7 @@ namespace nvvkhl
 			glm::vec3 envRotation{ 0.F };
 			bool denoiseApply{ true };
 			bool denoiseFirstFrame{ true };
-			int denoiseEveryNFrames{ 10 };
+			int denoiseEveryNFrames{ 500 };
 			int mode{ 0 }; // 0 = R-dominant, 1 = L-dominant, -1 = no reprojection
 			bool pointLightEnabled{ true };
 			glm::vec3 pointLightPos{ 5.4f, 2.1f, -0.5f };        // above scene by default

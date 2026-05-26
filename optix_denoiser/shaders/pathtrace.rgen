@@ -126,6 +126,7 @@ float upperDepthThreshold = 0.5;    // Quad 1
 float leftDepthThreshold =  1.0;    // Quad 2
 float rightDepthThreshold =  1.0;   // Quad 0
 float bottomDepthThreshold =  2.5;  // Quad 3
+float chosenLinearDepth = 0.0;
 /*
     0 = Raytrace, 
     1 = normal reprojected mid range, 
@@ -161,6 +162,12 @@ ChosenDepth getChosenDepth(float rawDepth) {
     return d;
 }
 
+int getEyeLocalX()
+{
+    return isLeftView
+        ? int(gl_LaunchIDEXT.x)
+        : int(gl_LaunchIDEXT.x) - halfWidth;
+}
 
 //-----------------------------------------------------------------------
 // Shared view matrix selection — eliminates duplicated logic
@@ -209,6 +216,15 @@ int getEyeQuadrant()
     if (ang < 135.0)                return 1;
     if (ang < 225.0)                return 2;
     return 3;
+    // opção sem atan
+    /*/ flip Y for screen coordinate convention
+    vec2 abs_d = abs(d);
+    if (abs_d.x > abs_d.y) {
+        return (d.x > 0) ? 0 : 2;  // Right or Left
+    } else {
+            return (d.y > 0) ? 1 : 3;  // Top or Bottom
+        }
+    }*/
 }
 
 
@@ -216,9 +232,9 @@ int getEyeQuadrant()
   theta = 2 * atan(DX / (2 * D)) where DX = parallax in pixels
   D = screen distance in pixels
 */
-ivec2 clampToViewBounds(ivec2 coord, bool targetIsLeft, int halfWidth) {
+ivec2 clampToViewBounds(ivec2 coord, int halfWidth) {
     coord.y = clamp(coord.y, 0, int(gl_LaunchSizeEXT.y) - 1);
-    if (targetIsLeft) {
+    if (isLeftView) {
         coord.x = clamp(coord.x, 0, halfWidth - 1);
     }
     else {
@@ -434,25 +450,25 @@ void traceAlbedo(vec2 adjustedPixelPos)
     
 // Validated parallax calculation
 float calculateParallaxPixelsValidated(float rawDepth) {
-    ChosenDepth depth = getChosenDepth(rawDepth); // ALWAYS use absolute depth
+    //hosenDepth depth = getChosenDepth(rawDepth); // ALWAYS use absolute depth
     
-    float rawParallax = (eyeSeparation * gFocalLengthPixels) / depth.linearMeters;    
+    float rawParallax = (eyeSeparation * gFocalLengthPixels) / rawDepth;    
     // For very close objects (under 2 meters), be extremely conservative
-    if (depth.linearMeters < 2.0) {
+    if (rawDepth < 2.0) {
         // Exponential falloff for close objects - they're better raytraced
-        float closenessFactor = pow(depth.linearMeters / 2.0, 2.0); // 0 at depth 0, 1 at depth 2
+        float closenessFactor = pow(rawDepth / 2.0, 2.0); // 0 at depth 0, 1 at depth 2
         return rawParallax * closenessFactor;
     }
     
     // For close-medium objects (2-5m), linear falloff
-    if (depth.linearMeters < 5.0) {
-        float t = (depth.linearMeters - 2.0) / 3.0; // 0 to 1 over 2-5m range
+    if (rawDepth < 5.0) {
+        float t = (rawDepth - 2.0) / 3.0; // 0 to 1 over 2-5m range
         float falloff = mix(0.4, 1.0, t); // Start at 40% at 2m, full at 5m
         return rawParallax * falloff;
     }
     
     // For far objects (depth > 10m), use exact parallax without clamping
-    if (depth.linearMeters > 10.0) {
+    if (rawDepth > 10.0) {
         return rawParallax;
     }
     
@@ -471,28 +487,6 @@ float warpStrength(float dist, float radius, float borderThickness) {
     return clamp((dist - radius) / borderThickness, 0.0, 1.0);
 }
 
-// Fluid-like warping with multiple frequency components
-float fluidWarpStrength(float dist, float radius, float borderThickness, vec2 pixelPos, float time) {
-    if (dist < radius) return 0.0;
-    if (dist > radius + borderThickness) return 0.0;
-    
-    // Normalized distance in transition zone (0 to 1)
-    float t = (dist - radius) / borderThickness;
-    
-    // Smoothstep for basic transition
-    float base = smoothstep(0.0, 1.0, t);
-    
-    // Add sinusoidal variation based on pixel position (like fluid waves)
-    vec2 normalizedPos = pixelPos / vec2(gl_LaunchSizeEXT.xy);
-    float angleVariation = sin(normalizedPos.x * 10.0 + normalizedPos.y * 7.0 + time * 0.5) * 0.15;
-    float radialVariation = sin(dist * 0.02 + time * 0.3) * 0.1;
-    
-    // Combine variations - stronger near edges
-    float variation = (angleVariation + radialVariation) * (1.0 - base * 0.7);
-    
-    // Final warping strength with controlled variation
-    return clamp(base + variation, 0.0, 1.0);
-}
 
 // Warping that adapts to scene depth and geometry
 float adaptiveWarpStrength(float dist, float radius, float borderThickness, 
@@ -515,7 +509,7 @@ float adaptiveWarpStrength(float dist, float radius, float borderThickness,
     float normalMod = mix(1.2, 0.8, facingFactor); // More warp on edges, less on faces
     
     // Add fluid-like perturbation
-    vec2 uv = pixelPos / vec2(gl_LaunchSizeEXT.xy);
+    //vec2 uv = pixelPos / vec2(gl_LaunchSizeEXT.xy);
     float noise = sin(uv.x * 15.0 + time * 0.4) * 
                   sin(uv.y * 12.0 + time * 0.3) * 
                   cos((uv.x + uv.y) * 8.0 + time * 0.5) * 0.1;
@@ -543,29 +537,6 @@ float noise(vec2 p) {
                    hash(i + vec2(1.0, 1.0)), u.x), u.y);
 }
 
-float perlinWarpStrength(float dist, float radius, float borderThickness, 
-                        vec2 pixelPos, float time, float depth) {
-    if (dist < radius) return 0.0;
-    if (dist > radius + borderThickness) return 0.0;
-    
-    float t = (dist - radius) / borderThickness;
-    
-    // Base transition
-    float base = smoothstep(0.0, 1.0, t);
-    
-    // Generate organic noise pattern
-    vec2 noiseCoord = pixelPos * 0.01 + vec2(time * 0.1, 0.0);
-    float organicNoise = noise(noiseCoord) * 0.2;
-    
-    // Depth-aware noise intensity (less noise on close objects)
-    float depthFactor = clamp(depth * 2.0, 0.0, 1.0);
-    float noiseIntensity = mix(0.3, 0.1, depthFactor);
-    
-    // Apply noise with fading near center
-    float noiseMod = organicNoise * noiseIntensity * (1.0 - smoothstep(0.0, 0.5, base));
-    
-    return clamp(base + noiseMod, 0.0, 1.0);
-}
 
 // === BEST WARPING SOLUTION ===
 float adaptiveMultiFrequencyWarp(float dist, float radius, float borderThickness,
@@ -587,17 +558,17 @@ float adaptiveMultiFrequencyWarp(float dist, float radius, float borderThickness
     float normalInfluence = mix(1.2, 0.8, facing); // More warp on edges
     
     // Multi-frequency noise for "wobbly fluid" effect
-    vec2 uv = pixelPos / vec2(gl_LaunchSizeEXT.xy) * 3.0;
+    vec2 _uv = uv * 3.0;
     float timeScaled = time * 0.2;
     // Low frequency - broad waves
-    float lowFreq = sin(uv.x * 2.0 + timeScaled) * 
-                    sin(uv.y * 1.5 + timeScaled * 0.7) * 0.1;
+    float lowFreq = sin(_uv.x * 2.0 + timeScaled) * 
+                    sin(_uv.y * 1.5 + timeScaled * 0.7) * 0.1;
     // Medium frequency - medium detail
-    float medFreq = sin(uv.x * 8.0 + timeScaled * 1.3) * 
-                    cos(uv.y * 6.0 + timeScaled * 0.9) * 0.05;
+    float medFreq = sin(_uv.x * 8.0 + timeScaled * 1.3) * 
+                    cos(_uv.y * 6.0 + timeScaled * 0.9) * 0.05;
     // High frequency - fine detail (fades near center)
-    float highFreq = sin(uv.x * 25.0 + timeScaled * 2.1) * 
-                     sin(uv.y * 18.0 + timeScaled * 1.5) * 0.02;
+    float highFreq = sin(_uv.x * 25.0 + timeScaled * 2.1) * 
+                     sin(_uv.y * 18.0 + timeScaled * 1.5) * 0.02;
     // Combine frequencies with different weights
     float noise = (lowFreq + medFreq + highFreq) * (1.0 - base * 0.8);
     // Final adaptive warping strength
@@ -605,42 +576,21 @@ float adaptiveMultiFrequencyWarp(float dist, float radius, float borderThickness
     return clamp(strength, 0.0, 1.0);
 }
 
-/*
-float adaptiveBorderThickness(float depth, vec3 normal, vec2 pixelPos) {
-    if (depth > maxDepthThreshold) // adjust threshold as needed
-        return 0.0;
-    float baseThickness = 200.0; // Your base value
-    // Thicker border for complex geometry (based on normal variation)
-    float normalComplexity = 1.0 - abs(dot(normal, vec3(0.0, 0.0, 1.0)));
-    // Thinner border for distant objects
-    float depthFactor = clamp(depth * 2.0, 0.0, 1.0);
-    // Add noise to break up hard edges
-    vec2 uv = pixelPos / vec2(gl_LaunchSizeEXT.xy);
-    float noise = sin(uv.x * 25.0) * sin(uv.y * 18.0) * 0.1;
-    return baseThickness * 
-           mix(0.8, 1.2, normalComplexity) * 
-           mix(1.0, 0.7, depthFactor) + 
-           noise * 50.0;
-}*/
-//float adaptiveBorderThickness(float normalizedDepth, vec3 normal, vec2 pixelPos) {
-    //float linearDepth = getWorldDepth(normalizedDepth);
-    //float baseThickness = 100.0; // Your base value
-    // Thinner border for distant objects
-    //float depthFactor = clamp(depth * 2.0, 0.0, 1.0);
-   // float depthFactor = clamp(linearDepth / 10.0, 0.0, 1.0); // Objects beyond 10m get thinner border
+
 float adaptiveBorderThickness(float rawDepth, vec3 normal, vec2 pixelPos) {
-    ChosenDepth depth = getChosenDepth(rawDepth);
-    float linearDepth = depth.linearMeters; // Use linear format strictly
+    //ChosenDepth depth = getChosenDepth(rawDepth);
+    //float linearDepth = rawDepth; // Use linear format strictly
     
     float baseThickness = 100.0; // Your base value
     // Thinner border for distant objects
-    float depthFactor = clamp(linearDepth / 10.0, 0.0, 1.0); // Objects beyond 10m get thinner border
+    float depthFactor = clamp(rawDepth / 10.0, 0.0, 1.0); // Objects beyond 10m get thinner border
     // Thicker border for complex geometry (based on normal variation)
     float normalComplexity = 1.0 - abs(dot(normal, vec3(0.0, 0.0, 1.0)));
-    
+    // Gemini suggestion: hoist normal dot 
+    // float normalComplexity = 1.0 - abs(normal.z);
     
     // Add noise to break up hard edges
-    vec2 uv = pixelPos / vec2(gl_LaunchSizeEXT.xy);
+    //vec2 uv = pixelPos / vec2(gl_LaunchSizeEXT.xy);
     float noise = sin(uv.x * 25.0) * sin(uv.y * 18.0) * 0.1;
     
     return baseThickness * 
@@ -648,15 +598,6 @@ float adaptiveBorderThickness(float rawDepth, vec3 normal, vec2 pixelPos) {
            mix(1.0, 0.7, depthFactor) + 
            noise * 50.0;
 }
-/*
-float adaptiveBorderThickness(float depth, vec3 normal, vec2 pixelPos) {
-    // Remove trigonometric noise for speed
-    float baseThickness = 200.0;
-    float normalComplexity = 1.0 - abs(dot(normal, vec3(0.0, 0.0, 1.0)));
-    float depthFactor = clamp(depth * 2.0, 0.0, 1.0);
-    return baseThickness * mix(0.8, 1.2, normalComplexity) * mix(1.0, 0.7, depthFactor);
-}
-*/
 
 
 // Warping mode selector function
@@ -665,14 +606,8 @@ float selectWarpStrength(int mode, float dist, float radius, float borderThickne
     if (mode == WARP_MODE_SIMPLE) {
         return warpStrength(dist, radius, borderThickness);
     }
-    else if (mode == WARP_MODE_FLUID) {
-        return fluidWarpStrength(dist, radius, borderThickness, pixelPos, time);
-    }
     else if (mode == WARP_MODE_ADAPTIVE) {
         return adaptiveWarpStrength(dist, radius, borderThickness, depth, pixelPos, normal, time);
-    }
-    else if (mode == WARP_MODE_PERLIN) {
-        return perlinWarpStrength(dist, radius, borderThickness, pixelPos, time, depth);
     }
     else { // WARP_MODE_MULTIFREQ (default)
         return adaptiveMultiFrequencyWarp(dist, radius, borderThickness, 
@@ -728,27 +663,6 @@ vec2 findSourceViaReliefSearch(vec2 nonDomLocalCoord, bool isLeftNonDom) {
 }
 */
 
-// Pure 3D reprojection: unproject → project to other view
-vec2 reprojectVia3D(vec2 screenPos, float depthNorm, mat4 fromViewInv, mat4 fromProjInv,
-                     mat4 toView, mat4 toProj)
-{
-    vec3 worldPos = reprojectWorldPosition(screenPos, depthNorm, fromViewInv, fromProjInv);
-    
-    if (length(worldPos) > 10000.0) {
-        return screenPos;
-    }
-    
-    vec4 otherClip = toProj * (toView * vec4(worldPos, 1.0));
-    
-    if (otherClip.w <= 0.0) {
-        return screenPos;
-    }
-    
-    vec3 otherNdc = otherClip.xyz / otherClip.w;
-    vec2 otherScreen = (otherNdc.xy * 0.5 + 0.5) * vec2(gl_LaunchSizeEXT.xy);
-    
-    return otherScreen;
-}
 
 // Return true when the MxM neighborhood around 'center' has max-min depth <= threshold
 bool depthNeighborhoodStable(ivec2 center, int M, float maxDeltaMeters)
@@ -770,11 +684,11 @@ bool depthNeighborhoodStable(ivec2 center, int M, float maxDeltaMeters)
             if (rawDepth <= 0.0) // no depth stored / invalid
                 continue;
             
-            ChosenDepth depth = getChosenDepth(rawDepth);
-            float d = depth.linearMeters; // convert to meters cleanly
+            //ChosenDepth depth = getChosenDepth(rawDepth);
+            //float d = depth.linearMeters; // convert to meters cleanly
             
-            minD = min(minD, d);
-            maxD = max(maxD, d);
+            minD = min(minD, rawDepth);
+            maxD = max(maxD, rawDepth);
             valid++;
             if ((maxD - minD) > maxDeltaMeters) return false;
         }
@@ -792,7 +706,7 @@ bool depthNeighborhoodStable(ivec2 center, int M, float maxDeltaMeters)
 // Add this confidence calculation function
 // Check depth continuity in 3x3 neighborhood
 float calculateReprojectionConfidence(ivec2 coord, float rawBaseDepth, float parallax) {
-    ChosenDepth baseDepth = getChosenDepth(rawBaseDepth);
+    // baseDepth = getChosenDepth(rawBaseDepth);
     float depthVariance = 0.0;
     int validSamples = 0;
     
@@ -806,7 +720,7 @@ float calculateReprojectionConfidence(ivec2 coord, float rawBaseDepth, float par
                 ChosenDepth sampleDepth = getChosenDepth(rawSampleDepth);
                 
                 // Force comparison into raw linear meters
-                depthVariance += abs(baseDepth.linearMeters - sampleDepth.linearMeters);
+                depthVariance += abs(rawBaseDepth - sampleDepth.linearMeters);
                 validSamples++;
             }
         }
@@ -824,12 +738,11 @@ float calculateReprojectionConfidence(ivec2 coord, float rawBaseDepth, float par
 
 // Advanced DIBR Coordinate Synthesis
 // Finds the exact source coordinate in the dominant eye that corresponds to the current non-dominant pixel
-vec2 synthesizeCoordinateAdvanced(vec2 nonDomLocalCoord, bool isLeftNonDom) {
-    float searchDir = isLeftNonDom ? -1.0 : 1.0;
+vec2 synthesizeCoordinateAdvanced(vec2 nonDomLocalCoord) {
+    float searchDir = dominantEye == rightEye ? -1.0 : 1.0;
     
     int steps = 16; // High quality search
     float maxSearchMeters = 50.0; // Search depth up to 50 meters
-    
     float closestDepthHit = 1e30; 
     vec2 bestSourceCoord = nonDomLocalCoord;
     bool foundMatch = false;
@@ -842,24 +755,24 @@ vec2 synthesizeCoordinateAdvanced(vec2 nonDomLocalCoord, bool isLeftNonDom) {
         
         // At this depth, what would the parallax be?
         float expectedParallax = (eyeSeparation * gFocalLengthPixels) / searchDistMeters;
-        
         // Where would this pixel be in the dominant eye?
         vec2 sampleCoord = nonDomLocalCoord + vec2(searchDir * expectedParallax, 0.0);
-        
         // Clamp to avoid reading out of bounds
         if (sampleCoord.x < 0.0 || sampleCoord.x >= float(halfWidth)) continue;
-
         // Convert to global dominant coordinate to read its stored depth
         ivec2 globalSampleCoord = ivec2(sampleCoord);
-        if (isLeftNonDom) globalSampleCoord.x += halfWidth;
-        else globalSampleCoord.x -= halfWidth;
-        
-        // Read actual depth from the dominant eye
-        float rawDepth = imageLoad(gDepth, clampToViewBounds(globalSampleCoord, !isLeftNonDom, halfWidth)).x;
-        
+
+        if (dominantEye == rightEye) {
+            globalSampleCoord.x = clamp(globalSampleCoord.x, halfWidth, int(gl_LaunchSizeEXT.x) - 1);
+        } else {
+            globalSampleCoord.x = clamp(globalSampleCoord.x, 0, halfWidth - 1);
+        }
+        float rawDepth = imageLoad(gDepth, globalSampleCoord).x;
+
+
         if (rawDepth > 0.0) {
-            ChosenDepth depth = getChosenDepth(rawDepth);
-            float actualDistMeters = depth.linearMeters; // Linear enforcement
+            //ChosenDepth depth = getChosenDepth(rawDepth);
+            float actualDistMeters = rawDepth; // Linear enforcement
             
             // Does the actual depth at this location match the depth we are searching for?
             // Tolerance increases with distance (perspective effect)
@@ -886,16 +799,20 @@ vec2 synthesizeCoordinateAdvanced(vec2 nonDomLocalCoord, bool isLeftNonDom) {
     if (!foundMatch) {
          // Convert non-dominant coordinate back to dominant global
          vec2 fallbackCoord = nonDomLocalCoord + vec2(searchDir * 0.0, 0.0); // 0 parallax fallback
-         if (isLeftNonDom) fallbackCoord.x += float(halfWidth);
-         else fallbackCoord.x -= float(halfWidth);
+         // if left eye is dominant, nonDomLocalCoord is already in the right eye's local space, 
+         // so we just need to shift it to the left eye's global space. If right eye is dominant, 
+         // we need to shift it to the right eye's global space.
+         if (dominantEye == rightEye) {
+             fallbackCoord.x += float(halfWidth); // at the right eye
+         }
          return fallbackCoord; 
     }
     
     // Convert resolved optimal coordinate to global dominant coordinate
     vec2 finalSourceGlobal = bestSourceCoord;
-    if (isLeftNonDom) finalSourceGlobal.x += float(halfWidth);
-    else finalSourceGlobal.x -= float(halfWidth);
-    
+    if (dominantEye == rightEye) {
+        finalSourceGlobal.x += float(halfWidth);
+    }
     return finalSourceGlobal;
 }
 
@@ -957,10 +874,10 @@ bool performReprojection(ivec2 otherViewCoord, float depth, float dist, float ra
                                                     depth, pixelPos, normal, time);
         
         if (warpStrengthVal > 0.001) {
-            vec2 currentLocalCoord = vec2(gl_LaunchIDEXT.x % halfWidth, gl_LaunchIDEXT.y);
+            vec2 currentLocalCoord = vec2(getEyeLocalX(), gl_LaunchIDEXT.y);
                 
             // Execute Advanced DIBR Synthesis
-            dstFullF = synthesizeCoordinateAdvanced(currentLocalCoord, isLeftView);
+            dstFullF = synthesizeCoordinateAdvanced(currentLocalCoord);
             dominantCoord = ivec2(dstFullF);
                 
             if (dominantEye == rightEye) {
@@ -1169,8 +1086,8 @@ void blendRaytracedAndReprojected(ivec2 otherViewCoord, float depth, float dist,
     {
         // --- OPTION A: 100% REPROJECTION ---
         // Use warped coordinate for alignment
-        vec2 currentLocalCoord = vec2(gl_LaunchIDEXT.x % halfWidth, gl_LaunchIDEXT.y);
-        vec2 warpedCoordF = synthesizeCoordinateAdvanced(currentLocalCoord, isLeftView);
+        vec2 currentLocalCoord = vec2(getEyeLocalX(), gl_LaunchIDEXT.y);
+        vec2 warpedCoordF = synthesizeCoordinateAdvanced(currentLocalCoord);
         ivec2 finalReprojCoord = ivec2(warpedCoordF);
         
         if (finalReprojCoord.x < 0 || finalReprojCoord.x >= int(gl_LaunchSizeEXT.x)) 
@@ -1256,6 +1173,7 @@ void main()
   /* --- Setup common values --- */
   halfWidth = int(gl_LaunchSizeEXT.x * 0.5);
   precomputeOpticalConstants();
+  uv = vec2(gl_LaunchIDEXT.xy) / vec2(gl_LaunchSizeEXT.xy);
 
   /* --- Determine view types --- */
   isLeftView = gl_LaunchIDEXT.x < halfWidth;
@@ -1301,13 +1219,13 @@ void main()
   /* --- Adjust pixel coordinates --- */
   ivec2 adjustedPixelPos = ivec2(gl_LaunchIDEXT.xy);
   ivec2 otherViewCoord = ivec2(gl_LaunchIDEXT.xy);
-  otherViewCoord = clampToViewBounds(otherViewCoord, !isLeftView, halfWidth);
-  
-  if (isLeftView) {
-    adjustedPixelPos.x *= 2;
+  int eyeLocalX = getEyeLocalX();
+  otherViewCoord = clampToViewBounds(otherViewCoord, halfWidth);
+  adjustedPixelPos.x = eyeLocalX * 2;
+
+  if (isLeftView) { // if left half of the screen
     otherViewCoord.x = int(gl_LaunchIDEXT.x + halfWidth);
   } else {
-    adjustedPixelPos.x = (adjustedPixelPos.x - halfWidth) * 2;
     otherViewCoord.x = int(gl_LaunchIDEXT.x - halfWidth);
   }
   if (pc.doDebug == 0) {
@@ -1315,7 +1233,6 @@ void main()
   } else {
     doDebug = true;
   }
-
 
   // Initialize random seed for ALL pixels
   uint seed = xxhash32(uvec3(adjustedPixelPos, pc.frame));
@@ -1326,14 +1243,10 @@ void main()
   float borderThickness = 200.0;
   float parallaxPixels = 0.0;
   vec3 normal = vec3(0.0, 0.0, 1.0);
+  
   // Calculate distance from screen center for ALL pixels
-  float eyeLocalX = isLeftView
-    ? float(gl_LaunchIDEXT.x)
-    : float(int(gl_LaunchIDEXT.x) - halfWidth);
-
   vec2 eyeCenter = vec2(float(halfWidth) * 0.5, float(gl_LaunchSizeEXT.y) * 0.5);
   vec2 eyePos    = vec2(eyeLocalX, float(gl_LaunchIDEXT.y));
-
   dist = length(eyePos - eyeCenter);
   
   
