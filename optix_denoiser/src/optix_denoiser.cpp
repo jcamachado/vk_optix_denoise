@@ -106,11 +106,12 @@
 static constexpr float HOST_MAX_COMFORTABLE_PARALLAX_ANGLE = 1.5f; // degrees
 static constexpr float HOST_VIEWER_DISTANCE = 0.5f; // meters
 
-static const char* sceneNames[] = { "Sponza", "Chess" };
+static const char* sceneNames[] = { "Sponza", "Chess", "City" };
 static const char* sceneFiles[] = {
 	"media/sponza/glTF/Sponza.gltf",
 	//"media/scenes/ABeautifulGame/glTF/ABeautifulGame.gltf"
-	"media/scenes/ABeautifulGameCopy/Untitled.gltf"
+	"media/scenes/ABeautifulGameCopy/Untitled.gltf",
+	"media/scenes/City/scene.gltf"
 };
 constexpr int sceneCount = sizeof(sceneNames) / sizeof(sceneNames[0]);
 
@@ -1378,8 +1379,8 @@ namespace nvvkhl
 				m_settings.pointLightEnabled = false;
 
 				// Canonical start camera for Chess (explicit values requested)
-				glm::vec3 cameraPos(-0.805f, 0.435f, 0.081f);           // Eye
-				glm::vec3 cameraCenter(14.18f, -3.122f, 1.827);       // Center
+				glm::vec3 cameraPos(-3.005f, 1.455f, 0.15f);           // Eye
+				glm::vec3 cameraCenter(14.31f, -2.9022f, 0.505);       // Center
 				glm::vec3 up(0.0f, 1.0f, 0.0f);
 				CameraManip.setLookat(cameraPos, cameraCenter, up, true);
 			}
@@ -1387,7 +1388,11 @@ namespace nvvkhl
 				setPointLightState(m_frameInfo, true);
 				m_settings.pointLightEnabled = true;
 				resetCamera();
-
+			}
+			else if (strcmp(sceneNames[sceneIndex], "City") == 0) {
+				setPointLightState(m_frameInfo, true);
+				m_settings.pointLightEnabled = false;
+				resetCamera();
 			}
 			else {
 				setPointLightState(m_frameInfo, true);
@@ -1413,15 +1418,15 @@ namespace nvvkhl
 				break;
 			case 1:
 				m_settings.enableReprojection = true;
-				m_middleRadius = 0.3f;
+				m_middleRadius = 30.0f;
 				break;
 			case 2:
 				m_settings.enableReprojection = true;
-				m_middleRadius = 0.45f;
+				m_middleRadius = 45.0f;
 				break;
 			case 3:
 				m_settings.enableReprojection = true;
-				m_middleRadius = 0.6f;
+				m_middleRadius = 60.0f;
 				break;
 			}
 
@@ -1646,7 +1651,9 @@ namespace nvvkhl
 					ImGui::Text("Denoised");
 					ImGui::Image(m_gBuffers->getDescriptorSet(eGbufDenoised), tumbnailSize);*/
 				}
-				ImGui::SliderFloat("Middle Radius", &m_middleRadius, 0.1f, 1.0f);
+				if (ImGui::SliderFloat("Middle Radius", &m_middleRadius, 1.0f, 150.0f)) {
+					reset = true;
+				}
 				ImGui::SliderInt("debug", &m_settings.doDebug, 0, 1);
 				//if (ImGui::SliderFloat("Eye Separation (m)", &m_xrEyeSeparation, 0.05f, 0.075f, "%.3f")) {
 				//	resetFrame(); // Flush accumulation to avoid ghosting
@@ -2710,11 +2717,14 @@ namespace nvvkhl
 			const float maxAngleRad = glm::radians(HOST_MAX_COMFORTABLE_PARALLAX_ANGLE);
 			fi.maxComfortableParallaxPixels = 2.0f * fi.screenDistancePixels * tanf(maxAngleRad * 0.5f);
 
+			// Convert UI value to circle diameter in degrees: 10 units = 1 degree
+			// The radius is half the diameter TODO maybe fix name, radius might be confusing since it's actually diameter in degrees, but it will be converted to radius in pixels later
+			const float radiusInDegrees = middleRadiusPct / 2.0f;
+
+			// Convert degrees to pixels
 			const float pixelRange = (halfWidth < height) ? halfWidth : height;
-			const float pxToFoV = (pixelRange > 1e-6f) ? (fovDegrees / pixelRange) : 0.0f;
-			const float midRadius = middleRadiusPct * fovDegrees / 100.0f;
-			const float radiusDeg = midRadius * 0.5f * fovDegrees;
-			fi.reprojectionRadiusPixels = (pxToFoV > 1e-6f) ? (radiusDeg / pxToFoV) : 0.0f;
+			const float pixelsPerDegree = pixelRange / fovDegrees;
+			fi.reprojectionRadiusPixels = radiusInDegrees * pixelsPerDegree;
 
 			// Store the viewer distance in frameInfo for debugging/UI
 			// (you may need to add this field to FrameInfo struct)
@@ -2934,13 +2944,16 @@ namespace nvvkhl
 				<< " - " << modeText << " - " << circleDegree << " - " << sceneName << std::endl;
 		}
 
-		void createScene(const std::string& filename)
+		void createScene(const std::string& filename, float sceneScale = 1.0f)
 		{
 			m_scene->load(filename);
 
 			// ------- Apply a uniform scene scale here -------
 			// Change this value to scale the whole glTF scene (e.g. 0.5 = half size, 2.0 = double size).
-			const float sceneScale = 1.0f;
+			// if scene is beautifulGame, use scale 3.0f, otherwise, 1.0f
+			if (filename.find("Untitled") != std::string::npos) {
+				sceneScale = 7.0f;
+			}
 
 			// Get the root node, update its scale, and set it back.
 			tinygltf::Node rootNode = m_scene->getSceneRootNode();
@@ -3647,7 +3660,7 @@ namespace nvvkhl
 		uint64_t m_fenceValue{ 0U };
 #endif // NVP_SUPPORTS_OPTIX7 || NVP_SUPPORTS_OPTIX9
 		float m_blendFactor = 0.0f;
-		float m_middleRadius = 0.6f;
+		float m_middleRadius = 60.0f;
 		// XR related
 		// g_xrViews
 		// m_xrProjCached and m_cachedLeftProj/m_cachedRightProj

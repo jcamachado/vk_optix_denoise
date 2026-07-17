@@ -79,6 +79,7 @@ mediump vec4 gUnpackedAlbedo = vec4(0);
 mediump vec3 gUnpackedNormal = vec3(0);
 
 bool doReprojection = false; // true if copy other view
+bool doBlend = false;
 bool isLeftView = false;
 bool isDominantView = false;
 bool isNotDominantView = false;
@@ -92,26 +93,59 @@ mat4 dominantView, dominantProj, nonDomView, nonDomProj;
 int halfWidth = 0;
 mediump float dist = 0.0; // distance from center of the screen
 mediump float radius = 0.0;
-highp float farDistLinear = 0.0; // Linear Far ;TODO: pass real far from CPU
-highp float nearDistLinear = 0.0; // Linear Near
-highp float farDistNorm = 1.0; // Normalized Far
-highp float nearDistNorm = 0.0; // Normalized Near
+highp float farDistLinear = 0.0;
+highp float nearDistLinear = 0.0;
+highp float farDistNorm = 1.0;
+highp float nearDistNorm = 0.0;
+mediump float maxNormDepthThreshold = 0.9;
+mediump float maxLinearDepthThreshold = 2000.0;
+// Chosen between normalized and linear depths
+highp float farChosenDist = 0.0; 
+highp float nearChosenDist = 0.0; 
+mediump float maxChosenDepthThreshold = 0.9;
+
 highp float eyeSeparation = 0.065; // Average eye separation in meters
-// Not related with bounce depth of rays
-mediump float maxDepthThreshold = 0.9; // this is normalized
+
 // if fov is 90 degrees, focal lenght = (0.5 * imageWidth) / tan(0.5 * fov) = (0.5 * 800) / tan(0.5 * 90) = 400 pixels
 mediump float fovDegrees = 90.0; // Field of view in degrees
 mediump float halfWidthPixels = 0.0;
-
 // Precomputed values set once in main() to avoid recalculation per-pixel
 mediump float gTanHalfFov = 1.0;
 mediump float gFocalLengthPixels = 0.0;
 mediump float gMaxComfortableParallaxPixels = 0.0;
 bool doDebug = false;
+// Reprojection depth-check parameters
+int reprojCheckSize = 3;                 // M in your MxM neighborhood (odd recommended)
+float reprojMaxDepthDiffMeters = 0.5;    // max allowed depth difference (meters)
+int reprojRequireValidSamples = 4;       // minimal valid samples in neighborhood
+float baseBorderThickness = 100.0;
+float baseDegreeBorder = 2.0; // degrees
+int quadrantTilt;
+// The higher the threshold, more raytracing
+float upperDepthThreshold = 0.5;    // Quad 1
+float leftDepthThreshold =  1.0;    // Quad 2
+float rightDepthThreshold =  1.0;   // Quad 0
+float bottomDepthThreshold =  2.5;  // Quad 3
+float chosenLinearDepth = 0.0;
+/*
+    0 = Raytrace, 
+    1 = normal reprojected mid range, 
+    2 = normal reprojected max depth;
+    3 = blended-reprojected
+*/
+int debugColor = 0;
+
 
 vec2 uv;
 vec2 ndc;
 
+//-----------------------------------------------------------------------
+// Depth Representation
+//-----------------------------------------------------------------------
+struct ChosenDepth {
+    float normalized;
+    float linearMeters;
+};
 //-----------------------------------------------------------------------
 // Shared view matrix selection — eliminates duplicated logic
 //-----------------------------------------------------------------------
@@ -121,11 +155,76 @@ void getViewMatrices(out mat4 viewInv, out mat4 projInv)
   viewInv = useDominant ? dominantViewInv : nonDomViewInv;
   projInv = useDominant ? dominantProjInv : nonDomProjInv;
 }
+ChosenDepth getChosenDepth(float rawDepth) {
+    ChosenDepth d;
+    d.linearMeters = rawDepth;
+    d.normalized = clamp((rawDepth - nearDistLinear) / (farDistLinear - nearDistLinear), 0.0, 1.0);
+    return d;
+}
 
-// depthValue is alrdy normalized linear depth [0,1] and  Multiply by far dist to world dist
-float getWorldDepth(float normalizedDepth) {
-    //return depthValue * farDistLinear;
-    return nearDistLinear + normalizedDepth * (farDistLinear - nearDistLinear);
+int getEyeLocalX()
+{
+    return isLeftView
+        ? int(gl_LaunchIDEXT.x)
+        : int(gl_LaunchIDEXT.x) - halfWidth;
+}
+
+//-----------------------------------------------------------------------
+// Shared view matrix selection — eliminates duplicated logic
+//-----------------------------------------------------------------------
+/*void getViewMatrices(out mat4 viewInv, out mat4 projInv)
+{
+  bool useDominant = (dominantEye == rightEye) ? !isLeftView : isLeftView;
+  viewInv = useDominant ? dominantViewInv : nonDomViewInv;
+  projInv = useDominant ? dominantProjInv : nonDomProjInv;
+}
+*/
+float getWorldDepth(float depthMeters) {
+    return depthMeters;
+}
+
+float chosenDepth(float depthValue, bool useLinear)
+{
+  return useLinear ? depthValue : getWorldDepth(depthValue);
+}
+
+int getEyeQuadrant()
+{
+    vec2 p = vec2(gl_LaunchIDEXT.xy);
+    float hw = float(halfWidth);
+    float fw = float(gl_LaunchSizeEXT.x);
+    float fh = float(gl_LaunchSizeEXT.y);
+
+    // per-eye horizontal range
+    float eyeX0 = isLeftView ? 0.0 : hw;
+    float eyeX1 = isLeftView ? hw : fw;
+
+    // eye center in global coords
+    vec2 center = vec2((eyeX0 + eyeX1) * 0.5, fh * 0.5);
+    vec2 d = p - center;
+
+    // flip Y for screen coordinate convention
+    float ang = degrees(atan(-d.y, d.x));
+    if (ang < 0.0) ang += 360.0;
+
+    // Map angles to quadrants:
+    // right: -45..45  -> 1
+    // top:   45..135  -> 2
+    // left:  135..225 -> 3
+    // bottom:225..315 -> 0
+    if (ang < 45.0 || ang >= 315.0) return 0;
+    if (ang < 135.0)                return 1;
+    if (ang < 225.0)                return 2;
+    return 3;
+    // opção sem atan
+    /*/ flip Y for screen coordinate convention
+    vec2 abs_d = abs(d);
+    if (abs_d.x > abs_d.y) {
+        return (d.x > 0) ? 0 : 2;  // Right or Left
+    } else {
+            return (d.y > 0) ? 1 : 3;  // Top or Bottom
+        }
+    }*/
 }
 
 
@@ -133,9 +232,9 @@ float getWorldDepth(float normalizedDepth) {
   theta = 2 * atan(DX / (2 * D)) where DX = parallax in pixels
   D = screen distance in pixels
 */
-ivec2 clampToViewBounds(ivec2 coord, bool targetIsLeft, int halfWidth) {
+ivec2 clampToViewBounds(ivec2 coord, int halfWidth) {
     coord.y = clamp(coord.y, 0, int(gl_LaunchSizeEXT.y) - 1);
-    if (targetIsLeft) {
+    if (isLeftView) {
         coord.x = clamp(coord.x, 0, halfWidth - 1);
     }
     else {
@@ -145,9 +244,14 @@ ivec2 clampToViewBounds(ivec2 coord, bool targetIsLeft, int halfWidth) {
 }
 
 // Reproject a world position from depth and screen position
-vec3 reprojectWorldPosition(vec2 screenPos, float depth, mat4 viewInv, mat4 projInv)
+//vec3 reprojectWorldPosition(vec2 screenPos, float depth, mat4 viewInv, mat4 projInv)
+//{
+    //float worldDepth = getWorldDepth(depth);
+    //vec2 uv = (screenPos + 0.5) / vec2(gl_LaunchSizeEXT.xy);
+    //vec2 ndc = uv * 2.0 - 1.0;
+vec3 reprojectWorldPosition(vec2 screenPos, float rawDepth, mat4 viewInv, mat4 projInv)
 {
-    float worldDepth = getWorldDepth(depth);
+    float worldDepth = rawDepth;
 
     vec2 uv = (screenPos + 0.5) / vec2(gl_LaunchSizeEXT.xy);
     vec2 ndc = uv * 2.0 - 1.0;
@@ -328,14 +432,8 @@ void traceAlbedo(vec2 adjustedPixelPos)
   gUnpackedNormal = decompress_unit_vec(payloadGbuf.packNormal);
 }
 
-float calculateParallaxPixels(float normalizedDepth) {
-    float worldDist = getWorldDepth(normalizedDepth);
-    return (eyeSeparation * gFocalLengthPixels) / worldDist;
-}
-
 // Calculate parallax in pixels based on depth general with fov
-// First calculate raw parallax
-// Calculate the angle
+// First calculate raw parallax Calculate the angle
 // Get maximum comfortable parallax for your setup
 // For objects in front of screen (negative parallax), be more restrictive
 // Reference says negative parallax should be closer to zero
@@ -351,40 +449,36 @@ float calculateParallaxPixels(float normalizedDepth) {
 // Total ~90 pixels occluded on each side
     
 // Validated parallax calculation
-float calculateParallaxPixelsValidated(float depth) {
-    float worldDepth = getWorldDepth(depth);
-    float rawParallax = (eyeSeparation * gFocalLengthPixels) / worldDepth;
+float calculateParallaxPixelsValidated(float rawDepth) {
+    //hosenDepth depth = getChosenDepth(rawDepth); // ALWAYS use absolute depth
+    
+    float rawParallax = (eyeSeparation * gFocalLengthPixels) / rawDepth;    
+    // For very close objects (under 2 meters), be extremely conservative
+    if (rawDepth < 2.0) {
+        // Exponential falloff for close objects - they're better raytraced
+        float closenessFactor = pow(rawDepth / 2.0, 2.0); // 0 at depth 0, 1 at depth 2
+        return rawParallax * closenessFactor;
+    }
+    
+    // For close-medium objects (2-5m), linear falloff
+    if (rawDepth < 5.0) {
+        float t = (rawDepth - 2.0) / 3.0; // 0 to 1 over 2-5m range
+        float falloff = mix(0.4, 1.0, t); // Start at 40% at 2m, full at 5m
+        return rawParallax * falloff;
+    }
     
     // For far objects (depth > 10m), use exact parallax without clamping
-    if (worldDepth > 10.0) {
+    if (rawDepth > 10.0) {
         return rawParallax;
     }
     
-    // For closer objects, apply comfort zone limits
+    // For 5-10m range, normal clamping
     float maxComfortable = gMaxComfortableParallaxPixels;
-    float minComfortable = -maxComfortable * 0.5; // Less negative for objects in front
+    float minComfortable = -maxComfortable * 0.3; // Less negative for objects in front
     
     return clamp(rawParallax, minComfortable, maxComfortable);
 }
 
-
-float calculateSmoothTransitionFactor(float depth, float dist, float radius, float borderThickness) {
-    // Normalize distance from transition start
-    float distanceFactor = smoothstep(radius, radius + borderThickness, dist);
-    
-    // Depth influence - distant objects transition earlier
-    float depthFactor = smoothstep(nearDistLinear, farDistLinear * 0.7, getWorldDepth(depth));
-    
-    // Combine with non-linear response for smoother transition
-    float combined = distanceFactor * depthFactor;
-    
-    // Apply easing function for smoother transition
-    return smoothstep(0.0, 1.0, combined);
-}
-
-bool isInTransitionZone(float dist, float radius, float borderThickness) {
-    return (dist >= radius) && (dist <= radius + borderThickness);
-}
 
 float warpStrength(float dist, float radius, float borderThickness) {
     if (dist < radius) return 0.0;
@@ -393,28 +487,6 @@ float warpStrength(float dist, float radius, float borderThickness) {
     return clamp((dist - radius) / borderThickness, 0.0, 1.0);
 }
 
-// Fluid-like warping with multiple frequency components
-float fluidWarpStrength(float dist, float radius, float borderThickness, vec2 pixelPos, float time) {
-    if (dist < radius) return 0.0;
-    if (dist > radius + borderThickness) return 0.0;
-    
-    // Normalized distance in transition zone (0 to 1)
-    float t = (dist - radius) / borderThickness;
-    
-    // Smoothstep for basic transition
-    float base = smoothstep(0.0, 1.0, t);
-    
-    // Add sinusoidal variation based on pixel position (like fluid waves)
-    vec2 normalizedPos = pixelPos / vec2(gl_LaunchSizeEXT.xy);
-    float angleVariation = sin(normalizedPos.x * 10.0 + normalizedPos.y * 7.0 + time * 0.5) * 0.15;
-    float radialVariation = sin(dist * 0.02 + time * 0.3) * 0.1;
-    
-    // Combine variations - stronger near edges
-    float variation = (angleVariation + radialVariation) * (1.0 - base * 0.7);
-    
-    // Final warping strength with controlled variation
-    return clamp(base + variation, 0.0, 1.0);
-}
 
 // Warping that adapts to scene depth and geometry
 float adaptiveWarpStrength(float dist, float radius, float borderThickness, 
@@ -428,7 +500,8 @@ float adaptiveWarpStrength(float dist, float radius, float borderThickness,
     float base = smoothstep(0.0, 1.0, t);
     
     // Depth influence: objects farther away warp more gradually
-    float depthFactor = clamp((depth - nearDistNorm) / (farDistNorm - nearDistNorm), 0.0, 1.0);
+    //float depthFactor = clamp((depth - nearDistNorm) / (farDistNorm - nearDistNorm), 0.0, 1.0);
+    float depthFactor = clamp((depth - nearDistLinear) / (farDistLinear - nearDistLinear), 0.0, 1.0);
     float depthMod = mix(0.7, 1.3, depthFactor); // Range: 0.7 to 1.3
     
     // Normal influence: warp less on surfaces facing viewer
@@ -436,7 +509,7 @@ float adaptiveWarpStrength(float dist, float radius, float borderThickness,
     float normalMod = mix(1.2, 0.8, facingFactor); // More warp on edges, less on faces
     
     // Add fluid-like perturbation
-    vec2 uv = pixelPos / vec2(gl_LaunchSizeEXT.xy);
+    //vec2 uv = pixelPos / vec2(gl_LaunchSizeEXT.xy);
     float noise = sin(uv.x * 15.0 + time * 0.4) * 
                   sin(uv.y * 12.0 + time * 0.3) * 
                   cos((uv.x + uv.y) * 8.0 + time * 0.5) * 0.1;
@@ -464,29 +537,6 @@ float noise(vec2 p) {
                    hash(i + vec2(1.0, 1.0)), u.x), u.y);
 }
 
-float perlinWarpStrength(float dist, float radius, float borderThickness, 
-                        vec2 pixelPos, float time, float depth) {
-    if (dist < radius) return 0.0;
-    if (dist > radius + borderThickness) return 0.0;
-    
-    float t = (dist - radius) / borderThickness;
-    
-    // Base transition
-    float base = smoothstep(0.0, 1.0, t);
-    
-    // Generate organic noise pattern
-    vec2 noiseCoord = pixelPos * 0.01 + vec2(time * 0.1, 0.0);
-    float organicNoise = noise(noiseCoord) * 0.2;
-    
-    // Depth-aware noise intensity (less noise on close objects)
-    float depthFactor = clamp(depth * 2.0, 0.0, 1.0);
-    float noiseIntensity = mix(0.3, 0.1, depthFactor);
-    
-    // Apply noise with fading near center
-    float noiseMod = organicNoise * noiseIntensity * (1.0 - smoothstep(0.0, 0.5, base));
-    
-    return clamp(base + noiseMod, 0.0, 1.0);
-}
 
 // === BEST WARPING SOLUTION ===
 float adaptiveMultiFrequencyWarp(float dist, float radius, float borderThickness,
@@ -499,7 +549,8 @@ float adaptiveMultiFrequencyWarp(float dist, float radius, float borderThickness
     float base = smoothstep(0.0, 1.0, t);
     
     // Depth adaptation: farther objects transition more smoothly
-    float depthFactor = clamp((depth - nearDistNorm) / (farDistNorm - nearDistNorm), 0.0, 1.0);
+    //float depthFactor = clamp((depth - nearDistNorm) / (farDistNorm - nearDistNorm), 0.0, 1.0);
+    float depthFactor = clamp((depth - nearDistLinear) / (farDistLinear - nearDistLinear), 0.0, 1.0);
     float depthInfluence = mix(0.3, 1.0, depthFactor); // 0.3-1.0 range
     
     // Normal adaptation: less warping on surfaces facing camera
@@ -507,17 +558,17 @@ float adaptiveMultiFrequencyWarp(float dist, float radius, float borderThickness
     float normalInfluence = mix(1.2, 0.8, facing); // More warp on edges
     
     // Multi-frequency noise for "wobbly fluid" effect
-    vec2 uv = pixelPos / vec2(gl_LaunchSizeEXT.xy) * 3.0;
+    vec2 _uv = uv * 3.0;
     float timeScaled = time * 0.2;
     // Low frequency - broad waves
-    float lowFreq = sin(uv.x * 2.0 + timeScaled) * 
-                    sin(uv.y * 1.5 + timeScaled * 0.7) * 0.1;
+    float lowFreq = sin(_uv.x * 2.0 + timeScaled) * 
+                    sin(_uv.y * 1.5 + timeScaled * 0.7) * 0.1;
     // Medium frequency - medium detail
-    float medFreq = sin(uv.x * 8.0 + timeScaled * 1.3) * 
-                    cos(uv.y * 6.0 + timeScaled * 0.9) * 0.05;
+    float medFreq = sin(_uv.x * 8.0 + timeScaled * 1.3) * 
+                    cos(_uv.y * 6.0 + timeScaled * 0.9) * 0.05;
     // High frequency - fine detail (fades near center)
-    float highFreq = sin(uv.x * 25.0 + timeScaled * 2.1) * 
-                     sin(uv.y * 18.0 + timeScaled * 1.5) * 0.02;
+    float highFreq = sin(_uv.x * 25.0 + timeScaled * 2.1) * 
+                     sin(_uv.y * 18.0 + timeScaled * 1.5) * 0.02;
     // Combine frequencies with different weights
     float noise = (lowFreq + medFreq + highFreq) * (1.0 - base * 0.8);
     // Final adaptive warping strength
@@ -525,36 +576,21 @@ float adaptiveMultiFrequencyWarp(float dist, float radius, float borderThickness
     return clamp(strength, 0.0, 1.0);
 }
 
-/*
-float adaptiveBorderThickness(float depth, vec3 normal, vec2 pixelPos) {
-    if (depth > maxDepthThreshold) // adjust threshold as needed
-        return 0.0;
-    float baseThickness = 200.0; // Your base value
-    // Thicker border for complex geometry (based on normal variation)
-    float normalComplexity = 1.0 - abs(dot(normal, vec3(0.0, 0.0, 1.0)));
-    // Thinner border for distant objects
-    float depthFactor = clamp(depth * 2.0, 0.0, 1.0);
-    // Add noise to break up hard edges
-    vec2 uv = pixelPos / vec2(gl_LaunchSizeEXT.xy);
-    float noise = sin(uv.x * 25.0) * sin(uv.y * 18.0) * 0.1;
-    return baseThickness * 
-           mix(0.8, 1.2, normalComplexity) * 
-           mix(1.0, 0.7, depthFactor) + 
-           noise * 50.0;
-}*/
-float adaptiveBorderThickness(float normalizedDepth, vec3 normal, vec2 pixelPos) {
-    float linearDepth = getWorldDepth(normalizedDepth);
+
+float adaptiveBorderThickness(float rawDepth, vec3 normal, vec2 pixelPos) {
+    //ChosenDepth depth = getChosenDepth(rawDepth);
+    //float linearDepth = rawDepth; // Use linear format strictly
+    
     float baseThickness = 100.0; // Your base value
     // Thinner border for distant objects
-    //float depthFactor = clamp(depth * 2.0, 0.0, 1.0);
-    float depthFactor = clamp(linearDepth / 10.0, 0.0, 1.0); // Objects beyond 10m get thinner border
-
+    float depthFactor = clamp(rawDepth / 10.0, 0.0, 1.0); // Objects beyond 10m get thinner border
     // Thicker border for complex geometry (based on normal variation)
     float normalComplexity = 1.0 - abs(dot(normal, vec3(0.0, 0.0, 1.0)));
-    
+    // Gemini suggestion: hoist normal dot 
+    // float normalComplexity = 1.0 - abs(normal.z);
     
     // Add noise to break up hard edges
-    vec2 uv = pixelPos / vec2(gl_LaunchSizeEXT.xy);
+    //vec2 uv = pixelPos / vec2(gl_LaunchSizeEXT.xy);
     float noise = sin(uv.x * 25.0) * sin(uv.y * 18.0) * 0.1;
     
     return baseThickness * 
@@ -562,15 +598,6 @@ float adaptiveBorderThickness(float normalizedDepth, vec3 normal, vec2 pixelPos)
            mix(1.0, 0.7, depthFactor) + 
            noise * 50.0;
 }
-/*
-float adaptiveBorderThickness(float depth, vec3 normal, vec2 pixelPos) {
-    // Remove trigonometric noise for speed
-    float baseThickness = 200.0;
-    float normalComplexity = 1.0 - abs(dot(normal, vec3(0.0, 0.0, 1.0)));
-    float depthFactor = clamp(depth * 2.0, 0.0, 1.0);
-    return baseThickness * mix(0.8, 1.2, normalComplexity) * mix(1.0, 0.7, depthFactor);
-}
-*/
 
 
 // Warping mode selector function
@@ -579,176 +606,121 @@ float selectWarpStrength(int mode, float dist, float radius, float borderThickne
     if (mode == WARP_MODE_SIMPLE) {
         return warpStrength(dist, radius, borderThickness);
     }
-    else if (mode == WARP_MODE_FLUID) {
-        return fluidWarpStrength(dist, radius, borderThickness, pixelPos, time);
-    }
     else if (mode == WARP_MODE_ADAPTIVE) {
         return adaptiveWarpStrength(dist, radius, borderThickness, depth, pixelPos, normal, time);
-    }
-    else if (mode == WARP_MODE_PERLIN) {
-        return perlinWarpStrength(dist, radius, borderThickness, pixelPos, time, depth);
     }
     else { // WARP_MODE_MULTIFREQ (default)
         return adaptiveMultiFrequencyWarp(dist, radius, borderThickness, 
                                          depth, pixelPos, normal, time);
     }
 }
-
-
-bool reprojectPixel(
-  float pixelRand, ivec2 otherViewCoord, float depth, 
-  float probabilityFactor, float disparityPixels, float dist, float radius, 
-  bool isLeftView, float borderThickness
-) {
-    bool reprojectionSuccess = false;
-    ivec2 dominantCoord = otherViewCoord;
-    bool skipRayTrace = false;
+// Foreground-Biased 1D Relief Search
+/*
+vec2 findSourceViaReliefSearch(vec2 nonDomLocalCoord, bool isLeftNonDom) {
+    float searchDir = isLeftNonDom ? -1.0 : 1.0;
     
-    if (depth < maxDepthThreshold) {
-      // Get pixel position for fluid warping
-      vec2 pixelPos = vec2(gl_LaunchIDEXT.xy);
-      float time = float(pc.frame) * 0.01; // Animate over time
-      vec3 normal  = vec3(0.0, 0.0, 1.0);
-
-      // Only trace albedo for warp modes that actually need normals
-      if (warpMode == WARP_MODE_ADAPTIVE || warpMode == WARP_MODE_MULTIFREQ) {
-          // Read normal from already-rendered dominant eye instead of tracing a new ray
-          vec4 storedNormal = imageLoad(gNormal, otherViewCoord);
-          normal = storedNormal.rgb * 2.0 - 1.0; // Unpack from [0,1] to [-1,1]
-      }
-      
-      float warpStrengthVal = selectWarpStrength(warpMode, dist, radius, borderThickness,
-                                                  depth, pixelPos, normal, time);
+    int linearSteps = 16;         // Increased steps for better foreground detection
+    float maxSearchPixels = 100.0; // Ensure we cover large parallax for close objects
+    float stepSize = maxSearchPixels / float(linearSteps);
+    
+    float bestOffset = 0.0;
+    float minError = 9999.0;
+    float closestDepthHit = 1e30; // Track the depth of the best hit
+    
+    for (int i = 0; i <= linearSteps; i++) {
+        float offset = float(i) * stepSize;
+        vec2 sampleCoord = nonDomLocalCoord + vec2(searchDir * offset, 0.0);
         
-      
-      // Apply the warp
-      if (warpStrengthVal > 0.001) {
-          float parallax = calculateParallaxPixelsValidated(depth);
-          float warpDirection = isLeftView ? 1.0 : -1.0;
-          float shift = parallax * warpStrengthVal;
-          
-          /*
-          vec3 worldPos = reprojectWorldPosition(vec2(otherViewCoord), depth, dominantViewInv, dominantProjInv);
-          vec4 ndomClip = nonDomProj * (nonDomView * vec4(worldPos, 1.0));
-            if (ndomClip.w > 1e-6) {
-                vec2 ndc = ndomClip.xy / ndomClip.w;
-                vec2 mappedScreen = (ndc * 0.5 + 0.5) * vec2(gl_LaunchSizeEXT.xy);
-                dominantCoord = ivec2(mappedScreen);
-            } else {
-                // Fallback: simple horizontal warp when projection fails
-                dominantCoord.x += int(warpDirection * shift);
+        ivec2 globalSampleCoord = ivec2(sampleCoord);
+        if (isLeftNonDom) globalSampleCoord.x += halfWidth;
+        else globalSampleCoord.x -= halfWidth;
+        
+        float dNorm = imageLoad(gDepth, clampToViewBounds(globalSampleCoord, !isLeftNonDom, halfWidth)).x;
+        
+        if (dNorm > 0.0) {
+            float dMeters = getWorldDepth(dNorm);
+            float expectedParallax = (eyeSeparation * gFocalLengthPixels) / dMeters;
+            float err = abs(expectedParallax - offset);
+            
+            // Accept this hit if the error is small (< 1.5 pixels)
+            if (err < 1.5) {
+                // If we found a closer object that ALSO matches the geometry, prefer it!
+                // This prevents background dragging over foreground objects.
+                if (dMeters < closestDepthHit) {
+                    closestDepthHit = dMeters;
+                    bestOffset = expectedParallax; // Use the exact calculated parallax, not the step offset
+                }
             }
-          */
-          dominantCoord.x += int(warpDirection * shift);
-          
-          // Ensure within bounds
-          if (dominantEye == rightEye) {
-              dominantCoord.x = max(halfWidth, min(dominantCoord.x, int(gl_LaunchSizeEXT.x) - 1));
-          } else {
-              dominantCoord.x = max(0, min(dominantCoord.x, halfWidth - 1));
-          }
-      }
-      
-      // Try to sample from warped coordinate
-      if (dominantCoord.x >= 0 && dominantCoord.x < int(gl_LaunchSizeEXT.x) &&
-          dominantCoord.y >= 0 && dominantCoord.y < int(gl_LaunchSizeEXT.y)) {
-          
-          // Optional: Sample multiple points for smoother transition
-          vec4 colorAccum = vec4(0.0);
-          vec4 albedoAccum = vec4(0.0);
-          vec4 normalAccum = vec4(0.0);
-          int samples = 1;
-          
-          // Single sample for now (can be expanded to multi-sample)
-          colorAccum = imageLoad(image, dominantCoord);
-          //albedoAccum = imageLoad(gAlbedo, dominantCoord);
-          //normalAccum = imageLoad(gNormal, dominantCoord);
-          
-          //Reprojected image
-          // debug paint reprojected red
-          if (doDebug){
-              imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 0.0, 0.0, 1.0));
-          }else{
-            imageStore(image, ivec2(gl_LaunchIDEXT.xy), colorAccum);
-          }
-          //imageStore(gAlbedo, ivec2(gl_LaunchIDEXT.xy), albedoAccum);
-          //imageStore(gNormal, ivec2(gl_LaunchIDEXT.xy), normalAccum);
-          reprojectionSuccess = true;
-      }
-      
-      // Fallback to world-space reprojection if warping fails
-      if (!reprojectionSuccess) {
-          vec3 worldPos = reprojectWorldPosition(vec2(otherViewCoord), depth, dominantViewInv, dominantProjInv);
-          vec4 currentClip = nonDomProj * (nonDomView * vec4(worldPos, 1.0));
-
-          if (currentClip.w > 0.0) {
-              vec3 ndc = currentClip.xyz / currentClip.w;
-              vec2 currentScreen = (ndc.xy * 0.5 + 0.5) * vec2(gl_LaunchSizeEXT.xy);
-              ivec2 reprojCoord = ivec2(currentScreen);
-              
-              // Ensure coordinates are in the correct viewport
-              if (isLeftView) {
-                  reprojCoord.x = max(0, min(reprojCoord.x, halfWidth - 1));
-              } else {
-                  reprojCoord.x = max(halfWidth, min(reprojCoord.x, int(gl_LaunchSizeEXT.x) - 1));
-              }
-              
-              if (reprojCoord.x >= 0 && reprojCoord.x < int(gl_LaunchSizeEXT.x) &&
-                  reprojCoord.y >= 0 && reprojCoord.y < int(gl_LaunchSizeEXT.y)) 
-              {
-                  vec4 reprojColor = imageLoad(image, reprojCoord);
-                  if (doDebug){
-                      imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 0.5, 0.0, 1.0));
-                  }else{
-                    imageStore(image, ivec2(gl_LaunchIDEXT.xy), reprojColor);
-                  }
-                  //vec4 reprojAlbedo = imageLoad(gAlbedo, reprojCoord);
-                  //imageStore(gAlbedo, ivec2(gl_LaunchIDEXT.xy), reprojAlbedo);
-                  
-                  //vec4 reprojNormal = imageLoad(gNormal, reprojCoord);
-                  //imageStore(gNormal, ivec2(gl_LaunchIDEXT.xy), reprojNormal);
-                  reprojectionSuccess = true;
-                  
-                  //imageStore(gDisparity, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 1.0, 1.0)); // Blue for fallback
-              }
-          }
-      }
-  }
-  // Final fallback: simple copy without warping
-  if (!reprojectionSuccess) {
-      vec4 otherColor = imageLoad(image, otherViewCoord);
-      if (doDebug){
-              imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 0.7, 0.0, 1.0));
-    }else{
-    imageStore(image, ivec2(gl_LaunchIDEXT.xy), otherColor);
+        }
     }
-      //vec4 otherAlbedo = imageLoad(gAlbedo, otherViewCoord);
-      //imageStore(gAlbedo, ivec2(gl_LaunchIDEXT.xy), otherAlbedo);
-      
-      //vec4 otherNormal = imageLoad(gNormal, otherViewCoord);
-      //imageStore(gNormal, ivec2(gl_LaunchIDEXT.xy), otherNormal);
-      // imageStore(gDisparity, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 1.0, 1.0)); // Blue for reprojection
-      reprojectionSuccess = true;
-
-  }
-  //imageStore(gDisparity, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 0.0, 0.0, 1.0));
-  
-  return skipRayTrace;
+    
+    // Convert resolved offset to global dominant coordinate
+    vec2 finalSourceGlobal = nonDomLocalCoord + vec2(searchDir * bestOffset, 0.0);
+    if (isLeftNonDom) finalSourceGlobal.x += float(halfWidth);
+    else finalSourceGlobal.x -= float(halfWidth);
+    
+    return finalSourceGlobal;
 }
+*/
+
+
+// Return true when the MxM neighborhood around 'center' has max-min depth <= threshold
+bool depthNeighborhoodStable(ivec2 center, int M, float maxDeltaMeters)
+{
+    int halfM = M / 2;
+    float minD = 1e30;
+    float maxD = -1e30;
+    int valid = 0;
+
+    ivec2 imgSize = ivec2(gl_LaunchSizeEXT.xy);
+
+    for (int oy = -halfM; oy <= halfM; ++oy) {
+        for (int ox = -halfM; ox <= halfM; ++ox) {
+            ivec2 s = center + ivec2(ox, oy);
+            if (s.x < 0 || s.x >= imgSize.x || s.y < 0 || s.y >= imgSize.y)
+                continue;
+            
+            float rawDepth = imageLoad(gDepth, s).x;
+            if (rawDepth <= 0.0) // no depth stored / invalid
+                continue;
+            
+            //ChosenDepth depth = getChosenDepth(rawDepth);
+            //float d = depth.linearMeters; // convert to meters cleanly
+            
+            minD = min(minD, rawDepth);
+            maxD = max(maxD, rawDepth);
+            valid++;
+            if ((maxD - minD) > maxDeltaMeters) return false;
+        }
+    }
+
+    if (valid < reprojRequireValidSamples) // not enough samples -> be conservative
+        return false;
+
+    return (maxD - minD) <= maxDeltaMeters;
+}
+
 
 // Add this confidence calculation function
 // Check depth continuity in 3x3 neighborhood
-float calculateReprojectionConfidence(ivec2 coord, float depth, float parallax) {
+// Add this confidence calculation function
+// Check depth continuity in 3x3 neighborhood
+float calculateReprojectionConfidence(ivec2 coord, float rawBaseDepth, float parallax) {
+    // baseDepth = getChosenDepth(rawBaseDepth);
     float depthVariance = 0.0;
     int validSamples = 0;
+    
     for (int y = -1; y <= 1; y++) {
         for (int x = -1; x <= 1; x++) {
             ivec2 sampleCoord = coord + ivec2(x, y);
             if (sampleCoord.x >= 0 && sampleCoord.x < int(gl_LaunchSizeEXT.x) &&
                 sampleCoord.y >= 0 && sampleCoord.y < int(gl_LaunchSizeEXT.y)) {
                 
-                float sampleDepth = imageLoad(gDepth, sampleCoord).x;
-                depthVariance += abs(depth - sampleDepth);
+                float rawSampleDepth = imageLoad(gDepth, sampleCoord).x;
+                ChosenDepth sampleDepth = getChosenDepth(rawSampleDepth);
+                
+                // Force comparison into raw linear meters
+                depthVariance += abs(rawBaseDepth - sampleDepth.linearMeters);
                 validSamples++;
             }
         }
@@ -764,67 +736,384 @@ float calculateReprojectionConfidence(ivec2 coord, float depth, float parallax) 
 }
 
 
-void blendRaytracedAndReprojected(float blendFactor, ivec2 otherViewCoord, float depth, 
-                                 float disparityPixels, float dist, float radius, 
-                                 bool isLeftView, float borderThickness, ivec2 adjustedPixelPos, uint seed) {
+// Advanced DIBR Coordinate Synthesis
+// Finds the exact source coordinate in the dominant eye that corresponds to the current non-dominant pixel
+vec2 synthesizeCoordinateAdvanced(vec2 nonDomLocalCoord) {
+    float searchDir = dominantEye == rightEye ? -1.0 : 1.0;
     
-    // Sample reprojected content
-    ivec2 reprojCoord = otherViewCoord;
-    float parallaxPixels = calculateParallaxPixelsValidated(depth);    //VALIDATED parallax
-    //float parallaxPixels = 0.3;    //For testing
-    
-    float parallaxShift = parallaxPixels * blendFactor;
-    
-    float warpDirection = isLeftView ? 1.0 : -1.0;
-    reprojCoord.x += int(warpDirection * parallaxShift);  // Apply warping on blended reproj coord
-    
-    // Ensure within bounds
-    if (dominantEye == rightEye) {
-        reprojCoord.x = max(halfWidth, min(reprojCoord.x, int(gl_LaunchSizeEXT.x) - 1));
-    } else {
-        reprojCoord.x = max(0, min(reprojCoord.x, halfWidth - 1));
-    }
-    
-    // Get reprojected color
-    vec3 reprojColor = vec3(0.0);
-    vec3 reprojAlbedo = vec3(0.0);
-    vec3 reprojNormal = vec3(0.0);
-    
-    if (reprojCoord.x >= 0 && reprojCoord.x < int(gl_LaunchSizeEXT.x)) {
-        reprojColor = imageLoad(image, reprojCoord).rgb;
-        //reprojAlbedo = imageLoad(gAlbedo, reprojCoord).rgb;
-        //reprojNormal = imageLoad(gNormal, reprojCoord).rgb;
-    }
-    
-    // Get raytraced color for this pixel
-    float primaryT_dummy;
-    vec3 raytracedColor = samplePixel(seed, adjustedPixelPos, false, primaryT_dummy);
-    
-    // Trace albedo/normal for current pixel
-    traceAlbedo(adjustedPixelPos);
-    //vec3 raytracedAlbedo = gUnpackedAlbedo.rgb;
-    //vec3 raytracedNormal = gUnpackedNormal;
-    
-    // Blend between raytraced and reprojected
-    float confidence = calculateReprojectionConfidence(otherViewCoord, depth, disparityPixels);
-    float usedBlend = blendFactor * confidence; // low confidence -> less reproj contribution
+    int steps = 16; // High quality search
+    float maxSearchMeters = 50.0; // Search depth up to 50 meters
+    float closestDepthHit = 1e30; 
+    vec2 bestSourceCoord = nonDomLocalCoord;
+    bool foundMatch = false;
 
-    vec3 finalColor = mix(raytracedColor, reprojColor, usedBlend);
-    //vec3 finalAlbedo = mix(raytracedAlbedo, reprojAlbedo, blendFactor);
-    //vec3 finalNormal = mix(raytracedNormal, reprojNormal, blendFactor);
-    
-    // Store results
-    // Blended 
-    if (doDebug){
-        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 1.0, 1.0, 1.0));
-          }else{
-        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(finalColor, 1.0));
+    // Search along the epipolar line
+    for (int i = 0; i < steps; i++) {
+        // Linearly sample depth values in inverse space for better precision close up
+        float t = float(i) / float(steps - 1);
+        float searchDistMeters = 0.5 + t * maxSearchMeters; // From 0.5m to 50m
+        
+        // At this depth, what would the parallax be?
+        float expectedParallax = (eyeSeparation * gFocalLengthPixels) / searchDistMeters;
+        // Where would this pixel be in the dominant eye?
+        vec2 sampleCoord = nonDomLocalCoord + vec2(searchDir * expectedParallax, 0.0);
+        // Clamp to avoid reading out of bounds
+        if (sampleCoord.x < 0.0 || sampleCoord.x >= float(halfWidth)) continue;
+        // Convert to global dominant coordinate to read its stored depth
+        ivec2 globalSampleCoord = ivec2(sampleCoord);
+
+        if (dominantEye == rightEye) {
+            globalSampleCoord.x = clamp(globalSampleCoord.x, halfWidth, int(gl_LaunchSizeEXT.x) - 1);
+        } else {
+            globalSampleCoord.x = clamp(globalSampleCoord.x, 0, halfWidth - 1);
+        }
+        float rawDepth = imageLoad(gDepth, globalSampleCoord).x;
+
+
+        if (rawDepth > 0.0) {
+            //ChosenDepth depth = getChosenDepth(rawDepth);
+            float actualDistMeters = rawDepth; // Linear enforcement
+            
+            // Does the actual depth at this location match the depth we are searching for?
+            // Tolerance increases with distance (perspective effect)
+            float tolerance = 0.1 + (actualDistMeters * 0.05); 
+            
+            if (abs(actualDistMeters - searchDistMeters) < tolerance) {
+                // We found a matching surface!
+                // Prioritize the closest surface (handles occlusions correctly)
+                if (actualDistMeters < closestDepthHit) {
+                    closestDepthHit = actualDistMeters;
+                    
+                    // Refine the exact parallax shift using the actual depth found
+                    float refinedParallax = (eyeSeparation * gFocalLengthPixels) / actualDistMeters;
+                    bestSourceCoord = nonDomLocalCoord + vec2(searchDir * refinedParallax, 0.0);
+                    foundMatch = true;
+                    break;
+                }
+            }
+        }
     }
-    //imageStore(gAlbedo, ivec2(gl_LaunchIDEXT.xy), vec4(finalAlbedo, 1.0));
-    //imageStore(gNormal, ivec2(gl_LaunchIDEXT.xy), vec4(finalNormal, 1.0));
     
-    // Visualize blend factor
-    //imageStore(gDisparity, ivec2(gl_LaunchIDEXT.xy), vec4(blendFactor, 1.0 - blendFactor, 0.0, 1.0));
+    // If no match found, rely on spatial fallback based on neighboring pixels' parallax
+    // (This automatically fills in disocclusions/holes with background data)
+    if (!foundMatch) {
+         // Convert non-dominant coordinate back to dominant global
+         vec2 fallbackCoord = nonDomLocalCoord + vec2(searchDir * 0.0, 0.0); // 0 parallax fallback
+         // if left eye is dominant, nonDomLocalCoord is already in the right eye's local space, 
+         // so we just need to shift it to the left eye's global space. If right eye is dominant, 
+         // we need to shift it to the right eye's global space.
+         if (dominantEye == rightEye) {
+             fallbackCoord.x += float(halfWidth); // at the right eye
+         }
+         return fallbackCoord; 
+    }
+    
+    // Convert resolved optimal coordinate to global dominant coordinate
+    vec2 finalSourceGlobal = bestSourceCoord;
+    if (dominantEye == rightEye) {
+        finalSourceGlobal.x += float(halfWidth);
+    }
+    return finalSourceGlobal;
+}
+
+// Calculates allowable error in meters based on Mochizuki et al. (2012)
+// "The magnitude of stereopsis in peripheral visual fields"
+float calculatePerceptualTolerance(float worldDepthMeters, float pixelDistFromCenter, float focalLengthPxls, int quadrant) {
+    // 1. Calculate eccentricity (degrees from the fovea/center)
+    float eccentricityRatio = pixelDistFromCenter / focalLengthPxls; 
+    
+    // 2. Map eccentricity to human stereoacuity in arcseconds
+    // Based on the paper's means: 10° = 474, 20° = 725, 30° = 1223
+    float arcsecs = 300.0; // Baseline high-acuity fovea bound
+    // Precomputed tangent ratios for the paper's degree breakpoints:
+    // tan(10°) ≈ 0.176
+    // tan(20°) ≈ 0.364
+    // tan(30°) ≈ 0.577
+    /* Since we only do depth calculating outside the 30 degrees from center*/
+    if (eccentricityRatio <= 0.577) { // equivalente a comparar arctang a graus, economiza conta
+        // --- QUADRANT RULE ---
+        // Paper states: Stereopsis in the lower visual field (Quadrant 3) is "clearer" at 30°.
+        // Clearer = Lower threshold (more sensitive to errors, allows less discrepancy).
+        float t = (eccentricityRatio - 0.364) / (0.577 - 0.364);
+        float maxArcSecs = (quadrant == 3) ? 950.0 : 1223.0; // Stricter in the lower visual field
+        arcsecs = mix(725.0, maxArcSecs, t);
+    } 
+    else {
+        // Beyond 30°, stereoacuity heavily degrades up to the 3600 limit stated in the conclusion
+        float t = clamp((eccentricityRatio - 0.577) / (1.0 - 0.577), 0.0, 1.0);
+        float baseArcSecs = (quadrant == 3) ? 950.0 : 1223.0;
+        arcsecs = mix(baseArcSecs, 3600.0, t);
+    }
+    
+    // 3. Convert arcseconds to linear tolerance in meters (Small angle approximation)
+    // 1 arcsecond = 1 / 3600 of a degree
+    // 1 degree = PI / 180 radians
+    // 1 arcsecond = 0.000004848136811 radians
+    // Because the angle is so small, tan(radians) == radians.
+    // 0.000004848137 1 arcsecond in radians
+    float allowedVisualAngleRadians = arcsecs * 0.000004848137;
+    
+    // Your calculation: arc length = angle * distance
+    float toleranceMeters = worldDepthMeters * allowedVisualAngleRadians;
+    
+    return toleranceMeters;
+}
+
+// Shared reprojection algorithm used by both blending and reprojection modes
+bool performReprojection(ivec2 otherViewCoord, float depth, float dist, float radius, 
+                         float borderThickness, bool isLeftView, vec2 pixelPos, 
+                         float time, vec3 normal) {
+    bool reprojectionSuccess = false;
+    ivec2 dominantCoord = otherViewCoord;
+    bool skipWarping = false;
+    vec2 dstFullF = vec2(otherViewCoord) + vec2(0.5);
+    
+    if (depth < maxChosenDepthThreshold) {
+        // Get warp strength
+        float warpStrengthVal = selectWarpStrength(warpMode, dist, radius, borderThickness,
+                                                    depth, pixelPos, normal, time);
+        
+        if (warpStrengthVal > 0.001) {
+            vec2 currentLocalCoord = vec2(getEyeLocalX(), gl_LaunchIDEXT.y);
+                
+            // Execute Advanced DIBR Synthesis
+            dstFullF = synthesizeCoordinateAdvanced(currentLocalCoord);
+            dominantCoord = ivec2(dstFullF);
+                
+            if (dominantEye == rightEye) {
+                dominantCoord.x = max(halfWidth, min(dominantCoord.x, int(gl_LaunchSizeEXT.x) - 1));
+            } else {
+                dominantCoord.x = max(0, min(dominantCoord.x, halfWidth - 1));
+            }
+                
+            // --- INTEGRATE CLINICAL DATA ---
+            float actualDepthMeters = depth;
+            int quadrant = getEyeQuadrant();
+                
+            float dynamicToleranceMeters = calculatePerceptualTolerance(
+                actualDepthMeters, 
+                dist, 
+                gFocalLengthPixels,
+                quadrant
+            );
+            
+            // Check if the neighborhood is stable based on perceptual constraints
+            skipWarping = !depthNeighborhoodStable(dominantCoord, reprojCheckSize, dynamicToleranceMeters);
+            
+            // --- FORCE WARPING IN THE PERIPHERY ---
+            // If the depth neighborhood is unstable (like a heavy occlusion border on the floor),
+            // but we are far in the periphery (dist > radius), the glitch from a strict skip
+            // looks much worse than a stretched reprojected pixel.
+            // So, in the outer boundary, we IGNORE the skip and force the warp anyway!
+            if (skipWarping && dist > radius * 0.8) {
+                skipWarping = false; // Override the strict cutoff
+            }
+        }
+        
+        // Try to sample from warped coordinate
+        if (!skipWarping && dominantCoord.x >= 0 && dominantCoord.x < int(gl_LaunchSizeEXT.x) &&
+            dominantCoord.y >= 0 && dominantCoord.y < int(gl_LaunchSizeEXT.y)) {
+            
+            vec4 colorAccum = imageLoad(image, dominantCoord);
+            imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(colorAccum.rgb, 1.0));
+            if(!doBlend){
+            
+                // Sync G-buffers with the warped coordinate
+                imageStore(gAlbedo, ivec2(gl_LaunchIDEXT.xy), imageLoad(gAlbedo, dominantCoord));
+                imageStore(gNormal, ivec2(gl_LaunchIDEXT.xy), imageLoad(gNormal, dominantCoord));
+
+            }
+            reprojectionSuccess = true;
+        }
+        
+        // Fallback to world-space reprojection if warping fails
+        if (!reprojectionSuccess) {
+            vec3 worldPos = reprojectWorldPosition(vec2(otherViewCoord), depth, dominantViewInv, dominantProjInv);
+            vec4 currentClip = nonDomProj * (nonDomView * vec4(worldPos, 1.0));
+
+            if (currentClip.w > 0.0) {
+                vec3 ndc = currentClip.xyz / currentClip.w;
+                vec2 currentScreen = (ndc.xy * 0.5 + 0.5) * vec2(gl_LaunchSizeEXT.xy);
+                ivec2 reprojCoord = ivec2(currentScreen);
+                
+                // Ensure coordinates are in the correct viewport
+                if (isLeftView) {
+                    reprojCoord.x = max(0, min(reprojCoord.x, halfWidth - 1));
+                } else {
+                    reprojCoord.x = max(halfWidth, min(reprojCoord.x, int(gl_LaunchSizeEXT.x) - 1));
+                }
+                
+                if (reprojCoord.x >= 0 && reprojCoord.x < int(gl_LaunchSizeEXT.x) &&
+                    reprojCoord.y >= 0 && reprojCoord.y < int(gl_LaunchSizeEXT.y)) 
+                {
+                    vec4 reprojColor = imageLoad(image, reprojCoord);
+                    imageStore(image, ivec2(gl_LaunchIDEXT.xy), reprojColor);
+                    if(!doBlend){
+            
+                // Sync G-buffers with the warped coordinate
+                imageStore(gAlbedo, ivec2(gl_LaunchIDEXT.xy), imageLoad(gAlbedo, dominantCoord));
+                imageStore(gNormal, ivec2(gl_LaunchIDEXT.xy), imageLoad(gNormal, dominantCoord));
+
+            }
+                    reprojectionSuccess = true;
+
+                }
+            }
+        }
+    }
+    
+    // Final fallback: simple copy without warping
+    if (!reprojectionSuccess) {
+        vec4 otherColor = imageLoad(image, otherViewCoord);
+        imageStore(image, ivec2(gl_LaunchIDEXT.xy), otherColor);
+        // --- ADD THESE LINES TO FIX THE DENOISER BLUR ---
+        if(!doBlend){
+            
+                // Sync G-buffers with the warped coordinate
+                imageStore(gAlbedo, ivec2(gl_LaunchIDEXT.xy), imageLoad(gAlbedo, otherViewCoord));
+                imageStore(gNormal, ivec2(gl_LaunchIDEXT.xy), imageLoad(gNormal, otherViewCoord));
+
+            }
+        // -----------------------------------------------
+
+        reprojectionSuccess = true;
+    }
+    
+    return reprojectionSuccess;
+}
+
+
+// Updated reprojectPixel to use shared reprojection
+bool reprojectPixel(
+  float pixelRand, ivec2 otherViewCoord, float depth, 
+  float probabilityFactor, float disparityPixels, float dist, float radius, 
+  bool isLeftView, float borderThickness
+) {
+    vec2 pixelPos = vec2(gl_LaunchIDEXT.xy);
+    float time = float(pc.frame) * 0.01;
+    vec3 normal = vec3(0.0, 0.0, 1.0);
+    
+    // Load normal if needed
+    if (warpMode == WARP_MODE_ADAPTIVE || warpMode == WARP_MODE_MULTIFREQ) {
+        vec4 storedNormal = imageLoad(gNormal, otherViewCoord);
+        normal = storedNormal.rgb * 2.0 - 1.0;
+    }
+    debugColor = 1; // Reprojection
+    return performReprojection(otherViewCoord, depth, dist, radius, borderThickness, 
+                             isLeftView, pixelPos, time, normal);
+}
+
+/* 
+// Dont flicker but evident circle 
+void blendRaytracedAndReprojected(ivec2 otherViewCoord, 
+    float depth, float dist, float radius, bool isLeftView, 
+    float borderThickness, ivec2 adjustedPixelPos, uint seed) 
+    {
+    // Calculate normalized distance from center (0 = center, 1 = edge)
+    vec2 eyeCenter = vec2(float(halfWidth) * 0.5, float(gl_LaunchSizeEXT.y) * 0.5);
+    float eyeLocalX = isLeftView
+        ? float(gl_LaunchIDEXT.x)
+        : float(int(gl_LaunchIDEXT.x) - halfWidth);
+    vec2 eyePos = vec2(eyeLocalX, float(gl_LaunchIDEXT.y));
+    float pixelDist = length(eyePos - eyeCenter);
+    
+    // Normalize distance to [0, 1] range
+    float halfDiagonal = length(eyeCenter);
+    float normalizedDist = clamp(pixelDist / halfDiagonal, 0.0, 1.0);
+
+    
+    // Discrete steps based on distance bands
+    float modRange;
+    if (normalizedDist < 0.1) {
+        modRange = 128.0;  // 1% reproject, 99% raytracing at center
+    } else if (normalizedDist < 0.2) {
+        modRange = 64.0;  // 2% reproject, 98% raytracing
+    } else if (normalizedDist < 0.3) {
+        modRange = 32.0;  // 2% reproject, 98% raytracing
+    } else if (normalizedDist < 0.4) {
+        modRange = 16.0;  // 2% reproject, 98% raytracing
+    } else if (normalizedDist < 0.5) {
+        modRange = 8.0;  // 3% reproject, 97% raytracing
+    } else if (normalizedDist < 0.7) {
+        modRange = 4.0;   // 20% reproject, 80% raytracing
+    } else if (normalizedDist < 0.9) {
+        modRange = 2.0;   // 50% reproject, 50% raytracing
+    } else {
+        modRange = 2.0;   // 50% reproject, 50% raytracing at edges
+    }
+    
+    // Apply spatial dither pattern
+    uint ditherSum = uint(gl_LaunchIDEXT.x) + uint(gl_LaunchIDEXT.y);
+    uint bitwiseMask = uint(modRange) - 1u;
+    uint ditherPattern = ditherSum & bitwiseMask;
+    //uint ditherPattern = ditherSum % uint(max(1u, uint(modRange)));
+    
+    if (ditherPattern == 0u) {
+        // Use reprojection via shared algorithm
+        vec2 pixelPos = vec2(gl_LaunchIDEXT.xy);
+        float time = float(pc.frame) * 0.01;
+        vec3 normal = vec3(0.0, 0.0, 1.0);
+        
+        // Load normal if needed
+        if (warpMode == WARP_MODE_ADAPTIVE || warpMode == WARP_MODE_MULTIFREQ) {
+            vec4 storedNormal = imageLoad(gNormal, otherViewCoord);
+            normal = storedNormal.rgb * 2.0 - 1.0;
+        }
+        debugColor = 3;
+        doBlend = true;
+        performReprojection(otherViewCoord, depth, dist, radius, borderThickness, 
+                          isLeftView, pixelPos, time, normal);
+    }
+    // If ditherPattern != 0, return and let default raytracing in main() handle it
+}
+*/
+
+// Flicker but fixed if low denoise rate (might be double good)
+void blendRaytracedAndReprojected(ivec2 otherViewCoord, float depth, float dist, float radius, 
+                                  bool isLeftView, float borderThickness, vec2 adjustedPixelPos, inout uint seed)
+{
+    // 1. Calculate the weight for reprojection (0.0 = foveal edge, 1.0 = outer edge)
+    float distanceInfluence = clamp((dist - radius) / borderThickness, 0.0, 1.0);
+    float reprojWeight = smoothstep(0.0, 1.0, distanceInfluence);
+
+    // 2. Generate a dither value (0.0 to 1.0) for this specific pixel
+    // Using a simple hash of pixel coordinates + frame provides a stable "blue noise" feel
+    float dither = rand(seed); 
+
+    // 3. THE STOCHASTIC SWITCH:
+    // Instead of mixing, we pick one or the other based on the weight.
+    if (dither < reprojWeight) 
+    {
+        // --- OPTION A: 100% REPROJECTION ---
+        // Use warped coordinate for alignment
+        vec2 currentLocalCoord = vec2(getEyeLocalX(), gl_LaunchIDEXT.y);
+        vec2 warpedCoordF = synthesizeCoordinateAdvanced(currentLocalCoord);
+        ivec2 finalReprojCoord = ivec2(warpedCoordF);
+        
+        if (finalReprojCoord.x < 0 || finalReprojCoord.x >= int(gl_LaunchSizeEXT.x)) 
+            finalReprojCoord = otherViewCoord;
+
+        // Store 100% sharp reprojected data
+        imageStore(image,   ivec2(gl_LaunchIDEXT.xy), imageLoad(image, finalReprojCoord));
+        imageStore(gAlbedo, ivec2(gl_LaunchIDEXT.xy), imageLoad(gAlbedo, finalReprojCoord));
+        imageStore(gNormal, ivec2(gl_LaunchIDEXT.xy), imageLoad(gNormal, finalReprojCoord));
+        debugColor = 3; // Debug color for reprojected pixels in blend zone
+    } 
+    else 
+    {
+        // --- OPTION B: 100% RAY-TRACING ---
+        float t;
+        vec3 rtColor = samplePixel(seed, adjustedPixelPos, false, t);
+        traceAlbedo(adjustedPixelPos); // Fills gUnpackedAlbedo and gUnpackedNormal
+
+        // Store 100% sharp ray-traced data
+        imageStore(image,   ivec2(gl_LaunchIDEXT.xy), vec4(rtColor, 1.0));
+        imageStore(gAlbedo, ivec2(gl_LaunchIDEXT.xy), gUnpackedAlbedo);
+        
+        vec3 normalOut = gUnpackedNormal * 0.5 + 0.5;
+        imageStore(gNormal, ivec2(gl_LaunchIDEXT.xy), vec4(normalOut, 1.0));
+        debugColor = 0; // Debug color for ray-traced pixels in blend zone
+    }
 }
 
 bool isInDisparityZone(int pixelX, float depth, bool isLeftView) {
@@ -860,6 +1149,15 @@ void precomputeOpticalConstants()
   halfWidthPixels = frameInfo.halfWidthPixels;
   fovDegrees = frameInfo.fovDegrees;
   radius           = frameInfo.reprojectionRadiusPixels;
+  // Calculate the distance at which parallax becomes 1 pixel or less.
+  // Beyond this distance, the left and right eyes see the exact same pixel, 
+  // so warping/reprojection is unnecessary.
+  float zeroParallaxDepth = eyeSeparation * gFocalLengthPixels;
+
+  // The threshold is the *closest* of the two: 
+  // either the depth where parallax is unnoticeable, or the far clip plane (skybox).
+  maxChosenDepthThreshold = min(zeroParallaxDepth, farDistLinear - 0.01);
+
 }
 
 // implement the rest of dibr logic here
@@ -875,6 +1173,7 @@ void main()
   /* --- Setup common values --- */
   halfWidth = int(gl_LaunchSizeEXT.x * 0.5);
   precomputeOpticalConstants();
+  uv = vec2(gl_LaunchIDEXT.xy) / vec2(gl_LaunchSizeEXT.xy);
 
   /* --- Determine view types --- */
   isLeftView = gl_LaunchIDEXT.x < halfWidth;
@@ -920,13 +1219,13 @@ void main()
   /* --- Adjust pixel coordinates --- */
   ivec2 adjustedPixelPos = ivec2(gl_LaunchIDEXT.xy);
   ivec2 otherViewCoord = ivec2(gl_LaunchIDEXT.xy);
-  otherViewCoord = clampToViewBounds(otherViewCoord, !isLeftView, halfWidth);
-  
-  if (isLeftView) {
-    adjustedPixelPos.x *= 2;
+  int eyeLocalX = getEyeLocalX();
+  otherViewCoord = clampToViewBounds(otherViewCoord, halfWidth);
+  adjustedPixelPos.x = eyeLocalX * 2;
+
+  if (isLeftView) { // if left half of the screen
     otherViewCoord.x = int(gl_LaunchIDEXT.x + halfWidth);
   } else {
-    adjustedPixelPos.x = (adjustedPixelPos.x - halfWidth) * 2;
     otherViewCoord.x = int(gl_LaunchIDEXT.x - halfWidth);
   }
   if (pc.doDebug == 0) {
@@ -934,7 +1233,6 @@ void main()
   } else {
     doDebug = true;
   }
-
 
   // Initialize random seed for ALL pixels
   uint seed = xxhash32(uvec3(adjustedPixelPos, pc.frame));
@@ -945,14 +1243,10 @@ void main()
   float borderThickness = 200.0;
   float parallaxPixels = 0.0;
   vec3 normal = vec3(0.0, 0.0, 1.0);
+  
   // Calculate distance from screen center for ALL pixels
-  float eyeLocalX = isLeftView
-    ? float(gl_LaunchIDEXT.x)
-    : float(int(gl_LaunchIDEXT.x) - halfWidth);
-
   vec2 eyeCenter = vec2(float(halfWidth) * 0.5, float(gl_LaunchSizeEXT.y) * 0.5);
   vec2 eyePos    = vec2(eyeLocalX, float(gl_LaunchIDEXT.y));
-
   dist = length(eyePos - eyeCenter);
   
   
@@ -971,15 +1265,31 @@ void main()
         // Calculate adaptive border thickness
         vec4 normalData = imageLoad(gNormal, otherViewCoord);
         normal = normalData.rgb * 2.0 - 1.0;
-        borderThickness = adaptiveBorderThickness(depth, normal, vec2(gl_LaunchIDEXT.xy));
-    
+        //borderThickness = adaptiveBorderThickness(depth, normal, vec2(gl_LaunchIDEXT.xy));
+        borderThickness = max(
+            baseBorderThickness, 
+            adaptiveBorderThickness(depth, normal, vec2(gl_LaunchIDEXT.xy))
+            );
+
         // --- ADAPTIVE REPROJECTION DECISION (same as working code) ---
         // Close objects (small depth) will NOT be reprojected
         // Far objects (large depth) WILL be reprojected
-        float linearDepth = getWorldDepth(depth); // Convert to meters
-        float depthThreshold = 1.0; // in meters
+        float linearDepth = depth;
 
-        if ((dist > radius && !inDisparitySkipZone && linearDepth > 0.1) && linearDepth > depthThreshold) {
+        int quadrant = getEyeQuadrant();
+        float baseDepthThreshold = 1.0; // 1 meter base
+        if (quadrant == 0) baseDepthThreshold = rightDepthThreshold;
+        else if (quadrant == 1) baseDepthThreshold = upperDepthThreshold;
+        else if (quadrant == 2) baseDepthThreshold = leftDepthThreshold;
+        else baseDepthThreshold = bottomDepthThreshold;
+
+        float distanceFromCenter = dist;
+        float distanceFactor = smoothstep(0.0, radius, distanceFromCenter);
+        float depthThreshold = baseDepthThreshold * mix(1.0, 3.0, distanceFactor);
+
+        // Only reproject if depth is beyond adaptive threshold
+        if ((dist > radius && !inDisparitySkipZone && linearDepth > 0.1) && 
+            linearDepth > depthThreshold) {
             doReprojection = true;
         }
         else {
@@ -993,49 +1303,64 @@ void main()
     }
 
 
+    if (pc.passId == 0) {
+        doDebug = false;
+    }
+    if (doReprojection) {
+        float depthInfluence = 1.0 - smoothstep(nearDistNorm, farDistNorm, depth);
+        float distanceInfluence = clamp((dist - radius) / borderThickness, 0.0, 1.0);
+        float transitionFactor = distanceInfluence * (1.0 - depthInfluence * 0.5);
+
+        bool insideBaseBorder = (dist > radius) && (dist <= radius + baseBorderThickness);
+
+        
+        if ((transitionFactor >= 0.4 || depth > maxChosenDepthThreshold) && pc.mode != 2) {
+            reprojectPixel(0.0, otherViewCoord, depth, 0.0, parallaxPixels,
+                            dist, radius, isLeftView, borderThickness);
+            if (!doDebug) {
+                return; // Skip raytracing if reprojection was used and we're not debugging
+            }
+            if (depth > maxChosenDepthThreshold){
+                debugColor = 2; // for max depth-based reprojection
+            }else {
+                debugColor = 1; //reprojection
+            }
+        }
+        // First: blend if we're in the transition zone or inside the base border
+        else if (((transitionFactor > 0.1 && transitionFactor < 0.4) || insideBaseBorder) && pc.mode != 2) {
+            float blendAmount = max(transitionFactor, insideBaseBorder ? 0.1 : 0.0);
+
+            blendRaytracedAndReprojected(otherViewCoord, depth,
+                                            dist, radius, isLeftView,
+                                            baseBorderThickness, adjustedPixelPos, seed);
+            //if (!doDebug && debugColor != 0) { // if not raytrace and not debug, return
+            if (!doDebug) { // and not debug, return
+                return; // Already raytracing inside blend
+            }
+        }
+    }
+  }
+
   /* --- Debug visualization --- */
   /*
-  if (doDebug && pc.passId == 1) {
-    if (doReprojection) {
-      imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 0.0, 0.0, 1.0));
-    } else {
-      imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 1.0, 1.0));
+    0 = Raytrace,  - Blue
+    1 = normal reprojected mid range,  - Red
+    2 = normal reprojected max depth; - White
+    3 = blended-reprojected - Yellowish
+*/
+  if (doDebug && pc.passId == 1){
+    if(debugColor == 0) {
+        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 1.0, 1.0)); // Blue-raytracing
+    } else if (debugColor == 1) {
+        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 0.0, 0.0, 1.0)); // Red-reprojection
+    } else if (debugColor == 2) {
+        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 1.0, 1.0, 1.0)); // White-max depth reproj.
+    } else if (debugColor == 3) {
+        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 0.0, 0.0, 1.0)); // Red-reprojection
+        //imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 1.0, 0.0, 1.0)); // Yellowish-blended Reproj.
     }
     return;
   }
-
-  */
-  if (pc.passId == 0) {
-        doDebug = false;
-  }
-    if (doReprojection) {
-        // Depth influence - closer objects stay raytraced longer
-        float depthInfluence = 1.0 - smoothstep(nearDistNorm, farDistNorm, depth);
-        
-        // Distance influence
-        float distanceInfluence = clamp((dist - radius) / borderThickness, 0.0, 1.0);
-        
-        // Combined transition factor
-        float transitionFactor = distanceInfluence * (1.0 - depthInfluence * 0.5);
-        
-        if ((transitionFactor >= 0.4 || depth > maxDepthThreshold)&& pc.mode != 2) {
-            // Full reprojection for far periphery
-            reprojectPixel(0.0, otherViewCoord, depth, 0.0, parallaxPixels, 
-                          dist, radius, isLeftView, borderThickness);
-            return;
-        } else if (transitionFactor > 0.1) {
-            // Smooth transition zone - blend
-            blendRaytracedAndReprojected(transitionFactor, otherViewCoord, depth, 
-                                       parallaxPixels, dist, radius, isLeftView, 
-                                       borderThickness, adjustedPixelPos, seed);
-                                       // Blended 
-            //imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 1.0, 1.0, 1.0));
-            return;
-        }
-        // If transitionFactor <= 0.1, fall through to path tracing (close objects)
-    }
-  }
-
 
   /* --- Path tracing for all other cases --- */
   vec3 contribAccum = vec3(0.0);
@@ -1052,11 +1377,7 @@ void main()
 
   /* --- Store results --- */
   if(pc.frame == 0) {
-    if (doDebug){
-        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 1.0, 1.0));
-          }else{
     imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(contribAccum, 1.f));
-    }
     // G-buffers - only trace when needed
     if (isDominantView || (isNotDominantView && !doReprojection)) {
       traceAlbedo(adjustedPixelPos);
@@ -1064,43 +1385,22 @@ void main()
       
       gUnpackedNormal = (gUnpackedNormal * vec3(0.5)) + vec3(0.5);
       imageStore(gNormal, ivec2(gl_LaunchIDEXT.xy), vec4(gUnpackedNormal, 1));
-      
-      /*if (isDominantView && pc.passId == 0) {
+
+      if (isDominantView && pc.passId == 0) {
         float d = uintBitsToFloat(payloadGbuf.packDepth);
-        //imageStore(gDepth, ivec2(gl_LaunchIDEXT.xy), vec4(d, 0.0, 0.0, 0.0));
-        float linearDepth = (2.0 * nearDistLinear * farDistLinear) / 
-                    (farDistLinear + nearDistLinear - (2.0 * d - 1.0) * (farDistLinear - nearDistLinear));
-        imageStore(gDepth, ivec2(gl_LaunchIDEXT.xy), vec4(linearDepth, 0.0, 0.0, 0.0));
-      }*/
-      // With:
-    if (isDominantView && pc.passId == 0) {
-        float d = uintBitsToFloat(payloadGbuf.packDepth); // normalized linear depth [0,1]
         imageStore(gDepth, ivec2(gl_LaunchIDEXT.xy), vec4(d, 0.0, 0.0, 0.0));
-    }
+      }
+    /*
     } else if (isNotDominantView && doReprojection) {
       // Copy G-buffers from dominant view
       //imageStore(gAlbedo, ivec2(gl_LaunchIDEXT.xy), imageLoad(gAlbedo, otherViewCoord));
       //imageStore(gNormal, ivec2(gl_LaunchIDEXT.xy), imageLoad(gNormal, otherViewCoord));
       //imageStore(gDepth, ivec2(gl_LaunchIDEXT.xy), imageLoad(gDepth, otherViewCoord));
-    }
-    
-    // Mark disparity
-    /*
-    if (inDisparitySkipZone) {
-        imageStore(gDisparity, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 1.0, 1.0));
-    } else if (dist <= radius) {
-        imageStore(gDisparity, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 1.0, 0.0, 1.0));
-    } else {
-        imageStore(gDisparity, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 1.0, 0.0, 1.0));
     }*/
-
     } else {
         float a = 1.0f / float(pc.frame + 1);
         vec3 old_color = imageLoad(image, ivec2(gl_LaunchIDEXT.xy)).xyz;
-        if (doDebug && pc.passId == 1){
-              imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 1.0, 1.0));
-          }else{
         imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(mix(old_color, contribAccum, a), 1.f));
-        }
     }
+  }
 }

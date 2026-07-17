@@ -30,5 +30,6 @@ void main() {
     payloadGbuf.packAlbedo = 0u;
     payloadGbuf.packNormal = 0u;
     //payloadGbuf.packDepth  = packUnorm4x8(vec4(1.0, 1.0, 1.0, 0.0));
-    payloadGbuf.packDepth  = floatBitsToUint(1.0);
+    //payloadGbuf.packDepth  = floatBitsToUint(1.0);
+    payloadGbuf.packDepth  = floatBitsToUint(10000.0);
 }
