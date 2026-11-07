@@ -1,0 +1,361 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="MinSizeRel|x64">
+      <Configuration>MinSizeRel</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="RelWithDebInfo|x64">
+      <Configuration>RelWithDebInfo</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{416568CE-968D-3795-83A1-838B04D773AB}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <VcpkgEnabled>false</VcpkgEnabled>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <Platform>x64</Platform>
+    <ProjectName>glfw</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="do_not_import_user.props" Condition="exists('do_not_import_user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src\Debug\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">glfw.dir\Debug\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">glfw3</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src\Release\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">glfw.dir\Release\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">glfw3</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src\MinSizeRel\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">glfw.dir\MinSizeRel\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">glfw3</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src\RelWithDebInfo\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">glfw.dir\RelWithDebInfo\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">glfw3</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">.lib</TargetExt>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <BufferSecurityCheck></BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <DisableSpecificWarnings>26812;26451</DisableSpecificWarnings>
+      <ExceptionHandling>
+      </ExceptionHandling>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <MinimalRebuild></MinimalRebuild>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <Optimization>Disabled</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;_GLFW_WIN32;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;RESOURCE_DIRECTORY="G:/Repositories/jaxeproj/nvpro_core/resources/";NOMINMAX;USE_OPENXR;OPTIX9_PATH=R"(C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.1.0)";OPTIX9_VERSION_STR="9.1.0";NVP_SUPPORTS_OPTIX9;NVP_SUPPORTS_VULKANSDK;VK_ENABLE_BETA_EXTENSIONS;VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1;CMAKE_INTDIR="Debug"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;_WINDOWS;_GLFW_WIN32;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;RESOURCE_DIRECTORY=\"G:/Repositories/jaxeproj/nvpro_core/resources/\";NOMINMAX;USE_OPENXR;OPTIX9_PATH=R\"(C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.1.0)\";OPTIX9_VERSION_STR=\"9.1.0\";NVP_SUPPORTS_OPTIX9;NVP_SUPPORTS_VULKANSDK;VK_ENABLE_BETA_EXTENSIONS;VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1;CMAKE_INTDIR=\"Debug\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck></BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <DisableSpecificWarnings>26812;26451</DisableSpecificWarnings>
+      <ExceptionHandling>
+      </ExceptionHandling>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <MinimalRebuild></MinimalRebuild>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_GLFW_WIN32;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;RESOURCE_DIRECTORY="G:/Repositories/jaxeproj/nvpro_core/resources/";NOMINMAX;USE_OPENXR;OPTIX9_PATH=R"(C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.1.0)";OPTIX9_VERSION_STR="9.1.0";NVP_SUPPORTS_OPTIX9;NVP_SUPPORTS_VULKANSDK;VK_ENABLE_BETA_EXTENSIONS;VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1;CMAKE_INTDIR="Release"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_GLFW_WIN32;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;RESOURCE_DIRECTORY=\"G:/Repositories/jaxeproj/nvpro_core/resources/\";NOMINMAX;USE_OPENXR;OPTIX9_PATH=R\"(C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.1.0)\";OPTIX9_VERSION_STR=\"9.1.0\";NVP_SUPPORTS_OPTIX9;NVP_SUPPORTS_VULKANSDK;VK_ENABLE_BETA_EXTENSIONS;VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1;CMAKE_INTDIR=\"Release\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck></BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <DisableSpecificWarnings>26812;26451</DisableSpecificWarnings>
+      <ExceptionHandling>
+      </ExceptionHandling>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <MinimalRebuild></MinimalRebuild>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <Optimization>MinSpace</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_GLFW_WIN32;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;RESOURCE_DIRECTORY="G:/Repositories/jaxeproj/nvpro_core/resources/";NOMINMAX;USE_OPENXR;OPTIX9_PATH=R"(C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.1.0)";OPTIX9_VERSION_STR="9.1.0";NVP_SUPPORTS_OPTIX9;NVP_SUPPORTS_VULKANSDK;VK_ENABLE_BETA_EXTENSIONS;VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1;CMAKE_INTDIR="MinSizeRel"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_GLFW_WIN32;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;RESOURCE_DIRECTORY=\"G:/Repositories/jaxeproj/nvpro_core/resources/\";NOMINMAX;USE_OPENXR;OPTIX9_PATH=R\"(C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.1.0)\";OPTIX9_VERSION_STR=\"9.1.0\";NVP_SUPPORTS_OPTIX9;NVP_SUPPORTS_VULKANSDK;VK_ENABLE_BETA_EXTENSIONS;VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1;CMAKE_INTDIR=\"MinSizeRel\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck></BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <DisableSpecificWarnings>26812;26451</DisableSpecificWarnings>
+      <ExceptionHandling>
+      </ExceptionHandling>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <MinimalRebuild></MinimalRebuild>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_GLFW_WIN32;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;RESOURCE_DIRECTORY="G:/Repositories/jaxeproj/nvpro_core/resources/";NOMINMAX;USE_OPENXR;OPTIX9_PATH=R"(C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.1.0)";OPTIX9_VERSION_STR="9.1.0";NVP_SUPPORTS_OPTIX9;NVP_SUPPORTS_VULKANSDK;VK_ENABLE_BETA_EXTENSIONS;VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1;CMAKE_INTDIR="RelWithDebInfo"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;_GLFW_WIN32;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;RESOURCE_DIRECTORY=\"G:/Repositories/jaxeproj/nvpro_core/resources/\";NOMINMAX;USE_OPENXR;OPTIX9_PATH=R\"(C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.1.0)\";OPTIX9_VERSION_STR=\"9.1.0\";NVP_SUPPORTS_OPTIX9;NVP_SUPPORTS_VULKANSDK;VK_ENABLE_BETA_EXTENSIONS;VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1;CMAKE_INTDIR=\"RelWithDebInfo\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <CustomBuild Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\CMakeLists.txt">
+      <UseUtf8Encoding>Always</UseUtf8Encoding>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule G:/Repositories/jaxeproj/nvpro_core/third_party/glfw/src/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SG:/Repositories/jaxeproj/vk_denoise -BG:/Repositories/jaxeproj/vk_denoise --check-stamp-file G:/Repositories/jaxeproj/vk_denoise/nvpro_core/third_party/glfw/src/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\CMake\glfw3.pc.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule G:/Repositories/jaxeproj/nvpro_core/third_party/glfw/src/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SG:/Repositories/jaxeproj/vk_denoise -BG:/Repositories/jaxeproj/vk_denoise --check-stamp-file G:/Repositories/jaxeproj/vk_denoise/nvpro_core/third_party/glfw/src/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\CMake\glfw3.pc.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Building Custom Rule G:/Repositories/jaxeproj/nvpro_core/third_party/glfw/src/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SG:/Repositories/jaxeproj/vk_denoise -BG:/Repositories/jaxeproj/vk_denoise --check-stamp-file G:/Repositories/jaxeproj/vk_denoise/nvpro_core/third_party/glfw/src/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\CMake\glfw3.pc.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Building Custom Rule G:/Repositories/jaxeproj/nvpro_core/third_party/glfw/src/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SG:/Repositories/jaxeproj/vk_denoise -BG:/Repositories/jaxeproj/vk_denoise --check-stamp-file G:/Repositories/jaxeproj/vk_denoise/nvpro_core/third_party/glfw/src/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\CMake\glfw3.pc.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include\GLFW\glfw3.h" />
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include\GLFW\glfw3native.h" />
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\internal.h" />
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\platform.h" />
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\mappings.h" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\context.c" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\init.c" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\input.c" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\monitor.c" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\platform.c" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\vulkan.c" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\window.c" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\egl_context.c" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\osmesa_context.c" />
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\null_platform.h" />
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\null_joystick.h" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\null_init.c" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\null_monitor.c" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\null_window.c" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\null_joystick.c" />
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\win32_time.h" />
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\win32_thread.h" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\win32_module.c" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\win32_time.c" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\win32_thread.c" />
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\win32_platform.h" />
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\win32_joystick.h" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\win32_init.c" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\win32_joystick.c" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\win32_monitor.c" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\win32_window.c" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\src\wgl_context.c" />
+  </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <ProjectReference Include="G:\Repositories\jaxeproj\vk_denoise\ZERO_CHECK.vcxproj">
+      <Project>{7F24D410-0303-3588-BB82-369258B91A00}</Project>
+      <Name>ZERO_CHECK</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

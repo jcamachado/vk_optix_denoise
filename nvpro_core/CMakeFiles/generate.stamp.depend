@@ -1,0 +1,8 @@
+# CMake generation dependency list for this directory.
+C:/Program Files/CMake/share/cmake-4.2/Modules/FindPackageHandleStandardArgs.cmake
+C:/Program Files/CMake/share/cmake-4.2/Modules/FindPackageMessage.cmake
+C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython.cmake
+C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython/Support.cmake
+C:/Program Files/CMake/share/cmake-4.2/Modules/FindPython3.cmake
+G:/Repositories/jaxeproj/nvpro_core/CMakeLists.txt
+G:/Repositories/jaxeproj/nvpro_core/cmake/utilities.cmake

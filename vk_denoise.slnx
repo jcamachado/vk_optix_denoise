@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Solution>
+	<Configurations>
+		<BuildType Name="Debug"/>
+		<BuildType Name="Release"/>
+		<BuildType Name="MinSizeRel"/>
+		<BuildType Name="RelWithDebInfo"/>
+		<Platform Name="x64"/>
+	</Configurations>
+	<Project Path="nvpro_core/nvpro_core.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="17894421-eb0d-397c-ba5c-c2039ea73b7d">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="nvpro_core/third_party/fmt.vcxproj"/>
+		<BuildDependency Project="nvpro_core/third_party/glfw/src/glfw.vcxproj"/>
+		<BuildDependency Project="nvpro_core/third_party/imgui.vcxproj"/>
+		<BuildDependency Project="nvpro_core/third_party/implot.vcxproj"/>
+	</Project>
+	<Project Path="optix_denoiser/vk_denoise.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="92b06fcd-ca78-3a0f-b28f-d5cb9e3c54ff">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="nvpro_core/third_party/fmt.vcxproj"/>
+		<BuildDependency Project="nvpro_core/third_party/glfw/src/glfw.vcxproj"/>
+		<BuildDependency Project="nvpro_core/third_party/imgui.vcxproj"/>
+		<BuildDependency Project="nvpro_core/third_party/implot.vcxproj"/>
+		<BuildDependency Project="nvpro_core/nvpro_core.vcxproj"/>
+	</Project>
+	<Folder Name="/GLFW3/">
+		<Project Path="nvpro_core/third_party/glfw/src/update_mappings.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="a33ab1d5-35ff-3374-8b45-db9288684955">
+			<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+			<Build Solution="Debug|*" Project="false"/>
+			<Build Solution="Release|*" Project="false"/>
+			<Build Solution="MinSizeRel|*" Project="false"/>
+			<Build Solution="RelWithDebInfo|*" Project="false"/>
+		</Project>
+	</Folder>
+	<Folder Name="/ThirdParty/">
+		<Project Path="nvpro_core/third_party/fmt.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="1a339eb9-8075-3ad6-bb83-46ce2eba4776">
+			<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		</Project>
+		<Project Path="nvpro_core/third_party/glfw/src/glfw.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="416568ce-968d-3795-83a1-838b04d773ab">
+			<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		</Project>
+		<Project Path="nvpro_core/third_party/imgui.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="07a5e74c-3ae0-316d-9917-da9e56dd1fba">
+			<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		</Project>
+		<Project Path="nvpro_core/third_party/implot.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="563dde2e-e8db-3fd0-8c3e-c72ac17e8bb9">
+			<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		</Project>
+	</Folder>
+	<Folder Name="/_cmake/">
+		<Project Path="ALL_BUILD.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="597a988a-596f-3d3a-ba7d-747c011a8fba" DefaultStartup="true">
+			<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+			<BuildDependency Project="nvpro_core/third_party/fmt.vcxproj"/>
+			<BuildDependency Project="nvpro_core/third_party/glfw/src/glfw.vcxproj"/>
+			<BuildDependency Project="nvpro_core/third_party/imgui.vcxproj"/>
+			<BuildDependency Project="nvpro_core/third_party/implot.vcxproj"/>
+			<BuildDependency Project="nvpro_core/nvpro_core.vcxproj"/>
+			<BuildDependency Project="optix_denoiser/vk_denoise.vcxproj"/>
+		</Project>
+		<Project Path="INSTALL.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="70b2b841-77a0-34ad-b927-8c3e82fc66a6">
+			<BuildDependency Project="ALL_BUILD.vcxproj"/>
+			<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+			<Build Solution="Debug|*" Project="false"/>
+			<Build Solution="Release|*" Project="false"/>
+			<Build Solution="MinSizeRel|*" Project="false"/>
+			<Build Solution="RelWithDebInfo|*" Project="false"/>
+		</Project>
+		<Project Path="ZERO_CHECK.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="7f24d410-0303-3588-bb82-369258b91a00"/>
+	</Folder>
+</Solution>

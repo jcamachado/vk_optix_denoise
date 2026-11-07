@@ -1,0 +1,24 @@
+# CMake generation dependency list for this directory.
+C:/Program Files/CMake/share/cmake-4.2/Modules/CMakeFindDependencyMacro.cmake
+C:/Program Files/CMake/share/cmake-4.2/Modules/CheckCSourceCompiles.cmake
+C:/Program Files/CMake/share/cmake-4.2/Modules/CheckIncludeFile.cmake
+C:/Program Files/CMake/share/cmake-4.2/Modules/CheckLibraryExists.cmake
+C:/Program Files/CMake/share/cmake-4.2/Modules/FindCUDAToolkit.cmake
+C:/Program Files/CMake/share/cmake-4.2/Modules/FindPackageHandleStandardArgs.cmake
+C:/Program Files/CMake/share/cmake-4.2/Modules/FindPackageMessage.cmake
+C:/Program Files/CMake/share/cmake-4.2/Modules/FindThreads.cmake
+C:/Program Files/CMake/share/cmake-4.2/Modules/FindVulkan.cmake
+C:/Program Files/CMake/share/cmake-4.2/Modules/Internal/CheckSourceCompiles.cmake
+C:/tools/vcpkg/installed/x64-windows/share/jsoncpp/jsoncpp-namespaced-targets.cmake
+C:/tools/vcpkg/installed/x64-windows/share/jsoncpp/jsoncpp-targets-debug.cmake
+C:/tools/vcpkg/installed/x64-windows/share/jsoncpp/jsoncpp-targets-release.cmake
+C:/tools/vcpkg/installed/x64-windows/share/jsoncpp/jsoncpp-targets.cmake
+C:/tools/vcpkg/installed/x64-windows/share/jsoncpp/jsoncppConfig.cmake
+C:/tools/vcpkg/installed/x64-windows/share/jsoncpp/jsoncppConfigVersion.cmake
+C:/tools/vcpkg/installed/x64-windows/share/openxr-loader/OpenXRConfig.cmake
+C:/tools/vcpkg/installed/x64-windows/share/openxr-loader/OpenXRConfigVersion.cmake
+C:/tools/vcpkg/installed/x64-windows/share/openxr-loader/OpenXRTargets-debug.cmake
+C:/tools/vcpkg/installed/x64-windows/share/openxr-loader/OpenXRTargets-release.cmake
+C:/tools/vcpkg/installed/x64-windows/share/openxr-loader/OpenXRTargets.cmake
+G:/Repositories/jaxeproj/nvpro_core/cmake/find/FindOptix9.cmake
+G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/CMakeLists.txt

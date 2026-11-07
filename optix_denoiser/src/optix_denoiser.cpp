@@ -1636,8 +1636,9 @@ namespace nvvkhl
 							denoised_frame = (m_frame / m_settings.denoiseEveryNFrames) * m_settings.denoiseEveryNFrames;
 					}
 					ImGui::Text("Denoised Frame: %d", denoised_frame);
+					/*
 
-					/*ImVec2 tumbnailSize = { 150 * m_gBuffers->getAspectRatio(), 150 };
+					ImVec2 tumbnailSize = { 150 * m_gBuffers->getAspectRatio(), 150 };
 					ImGui::Text("Albedo");
 					ImGui::Image(m_gBuffers->getDescriptorSet(eGBufAlbedo), tumbnailSize);
 					ImGui::Text("Normal");
@@ -1649,7 +1650,8 @@ namespace nvvkhl
 					ImGui::Text("Result");
 					ImGui::Image(m_gBuffers->getDescriptorSet(eGBufResult), tumbnailSize);
 					ImGui::Text("Denoised");
-					ImGui::Image(m_gBuffers->getDescriptorSet(eGbufDenoised), tumbnailSize);*/
+					ImGui::Image(m_gBuffers->getDescriptorSet(eGbufDenoised), tumbnailSize);
+					*/
 				}
 				if (ImGui::SliderFloat("Middle Radius", &m_middleRadius, 1.0f, 150.0f)) {
 					reset = true;
@@ -3513,7 +3515,7 @@ namespace nvvkhl
 			nvvk::Texture result{ m_gBuffers->getColorImage(eGBufResult), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufResult) };
 			nvvk::Texture albedo{ m_gBuffers->getColorImage(eGBufAlbedo), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufAlbedo) };
 			nvvk::Texture normal{ m_gBuffers->getColorImage(eGBufNormal), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufNormal) };
-			//nvvk::Texture depth{ m_gBuffers->getColorImage(eGBufDepth), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufDepth) };
+			nvvk::Texture depth{ m_gBuffers->getColorImage(eGBufDepth), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufDepth) };
 			//nvvk::Texture disparity{ m_gBuffers->getColorImage(eGBufDisparity), nullptr, m_gBuffers->getDescriptorImageInfo(eGBufDisparity) };
 			m_denoiser->imageToBuffer(cmd, { result, albedo, normal });
 #endif // NVP_SUPPORTS_OPTIX7
@@ -3689,7 +3691,7 @@ auto main(int argc, char** argv) -> int
 {
 	nvvkhl::ApplicationCreateInfo spec;
 	spec.name = PROJECT_NAME " Example";
-	spec.vSync = true;
+	spec.vSync = false;
 
 	nvvk::ContextCreateInfo vkSetup;
 	vkSetup.apiMajor = 1;

@@ -1,0 +1,17 @@
+G:/Repositories/jaxeproj/vk_denoise/CMakeFiles/INSTALL.dir
+G:/Repositories/jaxeproj/vk_denoise/CMakeFiles/ALL_BUILD.dir
+G:/Repositories/jaxeproj/vk_denoise/CMakeFiles/ZERO_CHECK.dir
+G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/CMakeFiles/vk_denoise.dir
+G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/CMakeFiles/INSTALL.dir
+G:/Repositories/jaxeproj/vk_denoise/nvpro_core/CMakeFiles/nvpro_core.dir
+G:/Repositories/jaxeproj/vk_denoise/nvpro_core/CMakeFiles/INSTALL.dir
+G:/Repositories/jaxeproj/vk_denoise/nvpro_core/third_party/CMakeFiles/imgui.dir
+G:/Repositories/jaxeproj/vk_denoise/nvpro_core/third_party/CMakeFiles/implot.dir
+G:/Repositories/jaxeproj/vk_denoise/nvpro_core/third_party/CMakeFiles/fmt.dir
+G:/Repositories/jaxeproj/vk_denoise/nvpro_core/third_party/CMakeFiles/INSTALL.dir
+G:/Repositories/jaxeproj/vk_denoise/nvpro_core/third_party/CMakeFiles/ALL_BUILD.dir
+G:/Repositories/jaxeproj/vk_denoise/nvpro_core/third_party/glfw/CMakeFiles/INSTALL.dir
+G:/Repositories/jaxeproj/vk_denoise/nvpro_core/third_party/glfw/CMakeFiles/ALL_BUILD.dir
+G:/Repositories/jaxeproj/vk_denoise/nvpro_core/third_party/glfw/src/CMakeFiles/glfw.dir
+G:/Repositories/jaxeproj/vk_denoise/nvpro_core/third_party/glfw/src/CMakeFiles/update_mappings.dir
+G:/Repositories/jaxeproj/vk_denoise/nvpro_core/third_party/glfw/src/CMakeFiles/INSTALL.dir

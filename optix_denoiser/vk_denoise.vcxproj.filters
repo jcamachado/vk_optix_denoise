@@ -1,0 +1,127 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\src\denoiser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\src\optix_denoiser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\src\tinygltf_impl.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\nvp\perproject_globals.cpp">
+      <Filter>Other</Filter>
+    </ClCompile>
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\nvvk\nsight_aftermath_vk.cpp">
+      <Filter>Other</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\src\denoiser.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\nvp\resources.h">
+      <Filter>Other</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include\optix.h">
+      <Filter>Other</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\VulkanSDK\1.4.335.0\include\vulkan\vulkan_core.h">
+      <Filter>Other</Filter>
+    </ClInclude>
+    <ClInclude Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\device_host.h">
+      <Filter>Shaders\hdr</Filter>
+    </ClInclude>
+    <ClInclude Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\dh_bindings.h">
+      <Filter>Shaders\hdr</Filter>
+    </ClInclude>
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glm\glm\glm.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\tinygltf\tiny_gltf.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\tinygltf\json.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\tinyobjloader\tiny_obj_loader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\vma\include\vk_mem_alloc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\NVTX\c\include\nvtx3\nvToolsExt.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\compute_grid_minmax.comp">
+      <Filter>Shaders\src</Filter>
+    </CustomBuild>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\cpy_to_buffer.comp">
+      <Filter>Shaders\src</Filter>
+    </CustomBuild>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\cpy_to_img.comp">
+      <Filter>Shaders\src</Filter>
+    </CustomBuild>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\gbuffers.rchit">
+      <Filter>Shaders\src</Filter>
+    </CustomBuild>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\gbuffers.rmiss">
+      <Filter>Shaders\src</Filter>
+    </CustomBuild>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\pathtrace.rahit">
+      <Filter>Shaders\src</Filter>
+    </CustomBuild>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\pathtrace.rchit">
+      <Filter>Shaders\src</Filter>
+    </CustomBuild>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\pathtrace.rgen">
+      <Filter>Shaders\src</Filter>
+    </CustomBuild>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\pathtrace.rmiss">
+      <Filter>Shaders\src</Filter>
+    </CustomBuild>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\shadow.rmiss">
+      <Filter>Shaders\src</Filter>
+    </CustomBuild>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\compress.glsl">
+      <Filter>Shaders\hdr</Filter>
+    </None>
+    <None Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\get_hit.glsl">
+      <Filter>Shaders\hdr</Filter>
+    </None>
+    <None Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\payload.glsl">
+      <Filter>Shaders\hdr</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="G:\Repositories\jaxeproj\nvpro_core\nvp\resources.rc">
+      <Filter>Other</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{EB519514-8695-35E4-B9D4-795B112B078C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Other">
+      <UniqueIdentifier>{842110B9-D79F-3F6F-99D3-4B2D622390A1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders">
+      <UniqueIdentifier>{CDD40BF6-EA06-31FA-9A75-421CBC5858CD}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\hdr">
+      <UniqueIdentifier>{34633BBB-B6B3-3756-A3BE-483D698E570F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\src">
+      <UniqueIdentifier>{455CE454-3655-3709-BC0A-E305F2844C74}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{5A6B2A21-A5E9-3AFF-84A6-965736E81B79}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

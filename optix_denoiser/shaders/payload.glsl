@@ -39,4 +39,9 @@ struct GbufferPayload
   uint packDepth;
 };
 
+
+struct ShadowPayload {
+    bool isOccluded;
+};
+
 #endif  // PAYLOAD_H

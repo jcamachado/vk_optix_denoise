@@ -1,0 +1,1293 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="MinSizeRel|x64">
+      <Configuration>MinSizeRel</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="RelWithDebInfo|x64">
+      <Configuration>RelWithDebInfo</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{92B06FCD-CA78-3A0F-B28F-D5CB9E3C54FF}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <VcpkgEnabled>false</VcpkgEnabled>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <Platform>x64</Platform>
+    <ProjectName>vk_denoise</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="do_not_import_user.props" Condition="exists('do_not_import_user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">G:\Repositories\jaxeproj\bin_x64\Debug\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">vk_denoise.dir\Debug\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">vk_denoise</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</GenerateManifest>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">G:\Repositories\jaxeproj\bin_x64\Release\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">vk_denoise.dir\Release\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">vk_denoise</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</GenerateManifest>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">G:\Repositories\jaxeproj\bin_x64\MinSizeRel\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">vk_denoise.dir\MinSizeRel\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">vk_denoise</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">true</GenerateManifest>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">G:\Repositories\jaxeproj\bin_x64\RelWithDebInfo\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">vk_denoise.dir\RelWithDebInfo\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">vk_denoise</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">true</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">true</GenerateManifest>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\optix_denoiser;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\include;G:\Repositories\jaxeproj\vk_denoise\nvpro_core\extensions_vk_gen;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;G:\Repositories\jaxeproj\nvpro_core\third_party\imgui;G:\Repositories\jaxeproj\nvpro_core\third_party\implot;G:\Repositories\jaxeproj\nvpro_core\third_party\fmt\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glm;G:\Repositories\jaxeproj\nvpro_core\third_party\thread_pool\include;G:\Repositories\jaxeproj\nvpro_core\third_party\stb;G:\Repositories\jaxeproj\nvpro_core\third_party\tinygltf;G:\Repositories\jaxeproj\nvpro_core\third_party\tinyobjloader;G:\Repositories\jaxeproj\nvpro_core\third_party\cgltf;G:\Repositories\jaxeproj\nvpro_core\third_party\vma\include;G:\Repositories\jaxeproj\nvpro_core\third_party\NVTX\c\include;G:\Repositories\jaxeproj\nvpro_core\third_party\dxh\include\directx;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /external:I "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9/include" /external:I "C:/tools/vcpkg/installed/x64-windows/include" /Zc:__cplusplus /utf-8</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <BufferSecurityCheck></BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <DisableSpecificWarnings>26812;26451</DisableSpecificWarnings>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <MinimalRebuild></MinimalRebuild>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <Optimization>Disabled</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;IMGUI_DEFINE_MATH_OPERATORS;RESOURCE_DIRECTORY="G:/Repositories/jaxeproj/nvpro_core/resources/";NOMINMAX;USE_OPENXR;OPTIX9_PATH=R"(C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.1.0)";OPTIX9_VERSION_STR="9.1.0";NVP_SUPPORTS_OPTIX9;NVP_SUPPORTS_VULKANSDK;VK_ENABLE_BETA_EXTENSIONS;VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1;VK_USE_PLATFORM_WIN32_KHR;PROJECT_NAME="vk_denoise";PROJECT_RELDIRECTORY="../../vk_denoise/optix_denoiser/";PROJECT_DOWNLOAD_RELDIRECTORY="../../downloaded_resources/";PROJECT_NVPRO_CORE_RELDIRECTORY="../../nvpro_core/";_CRT_SECURE_NO_WARNINGS;GLM_FORCE_RADIANS;GLM_ENABLE_EXPERIMENTAL;GLM_FORCE_XYZW_ONLY;STBI_MSC_SECURE_CRT;CMAKE_INTDIR="Debug"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;_WINDOWS;IMGUI_DEFINE_MATH_OPERATORS;RESOURCE_DIRECTORY=\"G:/Repositories/jaxeproj/nvpro_core/resources/\";NOMINMAX;USE_OPENXR;OPTIX9_PATH=R\"(C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.1.0)\";OPTIX9_VERSION_STR=\"9.1.0\";NVP_SUPPORTS_OPTIX9;NVP_SUPPORTS_VULKANSDK;VK_ENABLE_BETA_EXTENSIONS;VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1;VK_USE_PLATFORM_WIN32_KHR;PROJECT_NAME=\"vk_denoise\";PROJECT_RELDIRECTORY=\"../../vk_denoise/optix_denoiser/\";PROJECT_DOWNLOAD_RELDIRECTORY=\"../../downloaded_resources/\";PROJECT_NVPRO_CORE_RELDIRECTORY=\"../../nvpro_core/\";_CRT_SECURE_NO_WARNINGS;GLM_FORCE_RADIANS;GLM_ENABLE_EXPERIMENTAL;GLM_FORCE_XYZW_ONLY;STBI_MSC_SECURE_CRT;CMAKE_INTDIR=\"Debug\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\optix_denoiser;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\include;G:\Repositories\jaxeproj\vk_denoise\nvpro_core\extensions_vk_gen;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;G:\Repositories\jaxeproj\nvpro_core\third_party\imgui;G:\Repositories\jaxeproj\nvpro_core\third_party\implot;G:\Repositories\jaxeproj\nvpro_core\third_party\fmt\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glm;G:\Repositories\jaxeproj\nvpro_core\third_party\thread_pool\include;G:\Repositories\jaxeproj\nvpro_core\third_party\stb;G:\Repositories\jaxeproj\nvpro_core\third_party\tinygltf;G:\Repositories\jaxeproj\nvpro_core\third_party\tinyobjloader;G:\Repositories\jaxeproj\nvpro_core\third_party\cgltf;G:\Repositories\jaxeproj\nvpro_core\third_party\vma\include;G:\Repositories\jaxeproj\nvpro_core\third_party\NVTX\c\include;G:\Repositories\jaxeproj\nvpro_core\third_party\dxh\include\directx;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\include;C:\tools\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\optix_denoiser;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\include;G:\Repositories\jaxeproj\vk_denoise\nvpro_core\extensions_vk_gen;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;G:\Repositories\jaxeproj\nvpro_core\third_party\imgui;G:\Repositories\jaxeproj\nvpro_core\third_party\implot;G:\Repositories\jaxeproj\nvpro_core\third_party\fmt\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glm;G:\Repositories\jaxeproj\nvpro_core\third_party\thread_pool\include;G:\Repositories\jaxeproj\nvpro_core\third_party\stb;G:\Repositories\jaxeproj\nvpro_core\third_party\tinygltf;G:\Repositories\jaxeproj\nvpro_core\third_party\tinyobjloader;G:\Repositories\jaxeproj\nvpro_core\third_party\cgltf;G:\Repositories\jaxeproj\nvpro_core\third_party\vma\include;G:\Repositories\jaxeproj\nvpro_core\third_party\NVTX\c\include;G:\Repositories\jaxeproj\nvpro_core\third_party\dxh\include\directx;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\include;C:\tools\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <PostBuildEvent>
+      <Message></Message>
+      <Command>setlocal
+C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -noprofile -executionpolicy Bypass -file C:/tools/vcpkg/scripts/buildsystems/msbuild/applocal.ps1 -targetBinary G:/Repositories/jaxeproj/bin_x64/Debug/vk_denoise.exe -installedDir C:/tools/vcpkg/installed/x64-windows/debug/bin -OutVariable out
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+    </PostBuildEvent>
+    <Link>
+      <AdditionalDependencies>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\lib\x64\cudart.lib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\lib\x64\cuda.lib;..\nvpro_core\Debug\nvpro_core_vk.lib;C:\VulkanSDK\1.4.335.0\Lib\vulkan-1.lib;C:\VulkanSDK\1.4.335.0\Lib\vulkan-1.lib;C:\tools\vcpkg\installed\x64-windows\debug\lib\openxr_loaderd.lib;..\nvpro_core\third_party\glfw\src\Debug\glfw3.lib;..\nvpro_core\third_party\Debug\imgui.lib;..\nvpro_core\third_party\Debug\implot.lib;..\nvpro_core\third_party\Debug\fmt.lib;advapi32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <DataExecutionPrevention></DataExecutionPrevention>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImageHasSafeExceptionHandlers></ImageHasSafeExceptionHandlers>
+      <ImportLibrary>G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/Debug/vk_denoise.lib</ImportLibrary>
+      <LinkErrorReporting></LinkErrorReporting>
+      <ProgramDataBaseFile>G:/Repositories/jaxeproj/bin_x64/Debug/vk_denoise.pdb</ProgramDataBaseFile>
+      <RandomizedBaseAddress></RandomizedBaseAddress>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\optix_denoiser;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\include;G:\Repositories\jaxeproj\vk_denoise\nvpro_core\extensions_vk_gen;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;G:\Repositories\jaxeproj\nvpro_core\third_party\imgui;G:\Repositories\jaxeproj\nvpro_core\third_party\implot;G:\Repositories\jaxeproj\nvpro_core\third_party\fmt\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glm;G:\Repositories\jaxeproj\nvpro_core\third_party\thread_pool\include;G:\Repositories\jaxeproj\nvpro_core\third_party\stb;G:\Repositories\jaxeproj\nvpro_core\third_party\tinygltf;G:\Repositories\jaxeproj\nvpro_core\third_party\tinyobjloader;G:\Repositories\jaxeproj\nvpro_core\third_party\cgltf;G:\Repositories\jaxeproj\nvpro_core\third_party\vma\include;G:\Repositories\jaxeproj\nvpro_core\third_party\NVTX\c\include;G:\Repositories\jaxeproj\nvpro_core\third_party\dxh\include\directx;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /external:I "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9/include" /external:I "C:/tools/vcpkg/installed/x64-windows/include" /Zc:__cplusplus /utf-8</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck></BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <DisableSpecificWarnings>26812;26451</DisableSpecificWarnings>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <MinimalRebuild></MinimalRebuild>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;IMGUI_DEFINE_MATH_OPERATORS;RESOURCE_DIRECTORY="G:/Repositories/jaxeproj/nvpro_core/resources/";NOMINMAX;USE_OPENXR;OPTIX9_PATH=R"(C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.1.0)";OPTIX9_VERSION_STR="9.1.0";NVP_SUPPORTS_OPTIX9;NVP_SUPPORTS_VULKANSDK;VK_ENABLE_BETA_EXTENSIONS;VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1;VK_USE_PLATFORM_WIN32_KHR;PROJECT_NAME="vk_denoise";PROJECT_RELDIRECTORY="../../vk_denoise/optix_denoiser/";PROJECT_DOWNLOAD_RELDIRECTORY="../../downloaded_resources/";PROJECT_NVPRO_CORE_RELDIRECTORY="../../nvpro_core/";_CRT_SECURE_NO_WARNINGS;GLM_FORCE_RADIANS;GLM_ENABLE_EXPERIMENTAL;GLM_FORCE_XYZW_ONLY;STBI_MSC_SECURE_CRT;CMAKE_INTDIR="Release"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;IMGUI_DEFINE_MATH_OPERATORS;RESOURCE_DIRECTORY=\"G:/Repositories/jaxeproj/nvpro_core/resources/\";NOMINMAX;USE_OPENXR;OPTIX9_PATH=R\"(C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.1.0)\";OPTIX9_VERSION_STR=\"9.1.0\";NVP_SUPPORTS_OPTIX9;NVP_SUPPORTS_VULKANSDK;VK_ENABLE_BETA_EXTENSIONS;VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1;VK_USE_PLATFORM_WIN32_KHR;PROJECT_NAME=\"vk_denoise\";PROJECT_RELDIRECTORY=\"../../vk_denoise/optix_denoiser/\";PROJECT_DOWNLOAD_RELDIRECTORY=\"../../downloaded_resources/\";PROJECT_NVPRO_CORE_RELDIRECTORY=\"../../nvpro_core/\";_CRT_SECURE_NO_WARNINGS;GLM_FORCE_RADIANS;GLM_ENABLE_EXPERIMENTAL;GLM_FORCE_XYZW_ONLY;STBI_MSC_SECURE_CRT;CMAKE_INTDIR=\"Release\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\optix_denoiser;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\include;G:\Repositories\jaxeproj\vk_denoise\nvpro_core\extensions_vk_gen;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;G:\Repositories\jaxeproj\nvpro_core\third_party\imgui;G:\Repositories\jaxeproj\nvpro_core\third_party\implot;G:\Repositories\jaxeproj\nvpro_core\third_party\fmt\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glm;G:\Repositories\jaxeproj\nvpro_core\third_party\thread_pool\include;G:\Repositories\jaxeproj\nvpro_core\third_party\stb;G:\Repositories\jaxeproj\nvpro_core\third_party\tinygltf;G:\Repositories\jaxeproj\nvpro_core\third_party\tinyobjloader;G:\Repositories\jaxeproj\nvpro_core\third_party\cgltf;G:\Repositories\jaxeproj\nvpro_core\third_party\vma\include;G:\Repositories\jaxeproj\nvpro_core\third_party\NVTX\c\include;G:\Repositories\jaxeproj\nvpro_core\third_party\dxh\include\directx;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\include;C:\tools\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\optix_denoiser;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\include;G:\Repositories\jaxeproj\vk_denoise\nvpro_core\extensions_vk_gen;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;G:\Repositories\jaxeproj\nvpro_core\third_party\imgui;G:\Repositories\jaxeproj\nvpro_core\third_party\implot;G:\Repositories\jaxeproj\nvpro_core\third_party\fmt\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glm;G:\Repositories\jaxeproj\nvpro_core\third_party\thread_pool\include;G:\Repositories\jaxeproj\nvpro_core\third_party\stb;G:\Repositories\jaxeproj\nvpro_core\third_party\tinygltf;G:\Repositories\jaxeproj\nvpro_core\third_party\tinyobjloader;G:\Repositories\jaxeproj\nvpro_core\third_party\cgltf;G:\Repositories\jaxeproj\nvpro_core\third_party\vma\include;G:\Repositories\jaxeproj\nvpro_core\third_party\NVTX\c\include;G:\Repositories\jaxeproj\nvpro_core\third_party\dxh\include\directx;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\include;C:\tools\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <PostBuildEvent>
+      <Message></Message>
+      <Command>setlocal
+C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -noprofile -executionpolicy Bypass -file C:/tools/vcpkg/scripts/buildsystems/msbuild/applocal.ps1 -targetBinary G:/Repositories/jaxeproj/bin_x64/Release/vk_denoise.exe -installedDir C:/tools/vcpkg/installed/x64-windows/bin -OutVariable out
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+    </PostBuildEvent>
+    <Link>
+      <AdditionalDependencies>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\lib\x64\cudart.lib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\lib\x64\cuda.lib;..\nvpro_core\Release\nvpro_core_vk.lib;C:\VulkanSDK\1.4.335.0\Lib\vulkan-1.lib;C:\VulkanSDK\1.4.335.0\Lib\vulkan-1.lib;C:\tools\vcpkg\installed\x64-windows\lib\openxr_loader.lib;..\nvpro_core\third_party\glfw\src\Release\glfw3.lib;..\nvpro_core\third_party\Release\imgui.lib;..\nvpro_core\third_party\Release\implot.lib;..\nvpro_core\third_party\Release\fmt.lib;advapi32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <DataExecutionPrevention></DataExecutionPrevention>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImageHasSafeExceptionHandlers></ImageHasSafeExceptionHandlers>
+      <ImportLibrary>G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/Release/vk_denoise.lib</ImportLibrary>
+      <LinkErrorReporting></LinkErrorReporting>
+      <ProgramDataBaseFile>G:/Repositories/jaxeproj/bin_x64/Release/vk_denoise.pdb</ProgramDataBaseFile>
+      <RandomizedBaseAddress></RandomizedBaseAddress>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\optix_denoiser;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\include;G:\Repositories\jaxeproj\vk_denoise\nvpro_core\extensions_vk_gen;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;G:\Repositories\jaxeproj\nvpro_core\third_party\imgui;G:\Repositories\jaxeproj\nvpro_core\third_party\implot;G:\Repositories\jaxeproj\nvpro_core\third_party\fmt\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glm;G:\Repositories\jaxeproj\nvpro_core\third_party\thread_pool\include;G:\Repositories\jaxeproj\nvpro_core\third_party\stb;G:\Repositories\jaxeproj\nvpro_core\third_party\tinygltf;G:\Repositories\jaxeproj\nvpro_core\third_party\tinyobjloader;G:\Repositories\jaxeproj\nvpro_core\third_party\cgltf;G:\Repositories\jaxeproj\nvpro_core\third_party\vma\include;G:\Repositories\jaxeproj\nvpro_core\third_party\NVTX\c\include;G:\Repositories\jaxeproj\nvpro_core\third_party\dxh\include\directx;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /external:I "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9/include" /external:I "C:/tools/vcpkg/installed/x64-windows/include" /Zc:__cplusplus /utf-8</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck></BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <DisableSpecificWarnings>26812;26451</DisableSpecificWarnings>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <MinimalRebuild></MinimalRebuild>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <Optimization>MinSpace</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;IMGUI_DEFINE_MATH_OPERATORS;RESOURCE_DIRECTORY="G:/Repositories/jaxeproj/nvpro_core/resources/";NOMINMAX;USE_OPENXR;OPTIX9_PATH=R"(C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.1.0)";OPTIX9_VERSION_STR="9.1.0";NVP_SUPPORTS_OPTIX9;NVP_SUPPORTS_VULKANSDK;VK_ENABLE_BETA_EXTENSIONS;VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1;VK_USE_PLATFORM_WIN32_KHR;PROJECT_NAME="vk_denoise";PROJECT_RELDIRECTORY="../../vk_denoise/optix_denoiser/";PROJECT_DOWNLOAD_RELDIRECTORY="../../downloaded_resources/";PROJECT_NVPRO_CORE_RELDIRECTORY="../../nvpro_core/";_CRT_SECURE_NO_WARNINGS;GLM_FORCE_RADIANS;GLM_ENABLE_EXPERIMENTAL;GLM_FORCE_XYZW_ONLY;STBI_MSC_SECURE_CRT;CMAKE_INTDIR="MinSizeRel"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;IMGUI_DEFINE_MATH_OPERATORS;RESOURCE_DIRECTORY=\"G:/Repositories/jaxeproj/nvpro_core/resources/\";NOMINMAX;USE_OPENXR;OPTIX9_PATH=R\"(C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.1.0)\";OPTIX9_VERSION_STR=\"9.1.0\";NVP_SUPPORTS_OPTIX9;NVP_SUPPORTS_VULKANSDK;VK_ENABLE_BETA_EXTENSIONS;VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1;VK_USE_PLATFORM_WIN32_KHR;PROJECT_NAME=\"vk_denoise\";PROJECT_RELDIRECTORY=\"../../vk_denoise/optix_denoiser/\";PROJECT_DOWNLOAD_RELDIRECTORY=\"../../downloaded_resources/\";PROJECT_NVPRO_CORE_RELDIRECTORY=\"../../nvpro_core/\";_CRT_SECURE_NO_WARNINGS;GLM_FORCE_RADIANS;GLM_ENABLE_EXPERIMENTAL;GLM_FORCE_XYZW_ONLY;STBI_MSC_SECURE_CRT;CMAKE_INTDIR=\"MinSizeRel\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\optix_denoiser;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\include;G:\Repositories\jaxeproj\vk_denoise\nvpro_core\extensions_vk_gen;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;G:\Repositories\jaxeproj\nvpro_core\third_party\imgui;G:\Repositories\jaxeproj\nvpro_core\third_party\implot;G:\Repositories\jaxeproj\nvpro_core\third_party\fmt\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glm;G:\Repositories\jaxeproj\nvpro_core\third_party\thread_pool\include;G:\Repositories\jaxeproj\nvpro_core\third_party\stb;G:\Repositories\jaxeproj\nvpro_core\third_party\tinygltf;G:\Repositories\jaxeproj\nvpro_core\third_party\tinyobjloader;G:\Repositories\jaxeproj\nvpro_core\third_party\cgltf;G:\Repositories\jaxeproj\nvpro_core\third_party\vma\include;G:\Repositories\jaxeproj\nvpro_core\third_party\NVTX\c\include;G:\Repositories\jaxeproj\nvpro_core\third_party\dxh\include\directx;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\include;C:\tools\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\optix_denoiser;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\include;G:\Repositories\jaxeproj\vk_denoise\nvpro_core\extensions_vk_gen;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;G:\Repositories\jaxeproj\nvpro_core\third_party\imgui;G:\Repositories\jaxeproj\nvpro_core\third_party\implot;G:\Repositories\jaxeproj\nvpro_core\third_party\fmt\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glm;G:\Repositories\jaxeproj\nvpro_core\third_party\thread_pool\include;G:\Repositories\jaxeproj\nvpro_core\third_party\stb;G:\Repositories\jaxeproj\nvpro_core\third_party\tinygltf;G:\Repositories\jaxeproj\nvpro_core\third_party\tinyobjloader;G:\Repositories\jaxeproj\nvpro_core\third_party\cgltf;G:\Repositories\jaxeproj\nvpro_core\third_party\vma\include;G:\Repositories\jaxeproj\nvpro_core\third_party\NVTX\c\include;G:\Repositories\jaxeproj\nvpro_core\third_party\dxh\include\directx;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\include;C:\tools\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <PostBuildEvent>
+      <Message></Message>
+      <Command>setlocal
+C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -noprofile -executionpolicy Bypass -file C:/tools/vcpkg/scripts/buildsystems/msbuild/applocal.ps1 -targetBinary G:/Repositories/jaxeproj/bin_x64/MinSizeRel/vk_denoise.exe -installedDir C:/tools/vcpkg/installed/x64-windows/bin -OutVariable out
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+    </PostBuildEvent>
+    <Link>
+      <AdditionalDependencies>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\lib\x64\cudart.lib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\lib\x64\cuda.lib;..\nvpro_core\MinSizeRel\nvpro_core_vk.lib;C:\VulkanSDK\1.4.335.0\Lib\vulkan-1.lib;C:\VulkanSDK\1.4.335.0\Lib\vulkan-1.lib;C:\tools\vcpkg\installed\x64-windows\lib\openxr_loader.lib;..\nvpro_core\third_party\glfw\src\MinSizeRel\glfw3.lib;..\nvpro_core\third_party\MinSizeRel\imgui.lib;..\nvpro_core\third_party\MinSizeRel\implot.lib;..\nvpro_core\third_party\MinSizeRel\fmt.lib;advapi32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <DataExecutionPrevention></DataExecutionPrevention>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImageHasSafeExceptionHandlers></ImageHasSafeExceptionHandlers>
+      <ImportLibrary>G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/MinSizeRel/vk_denoise.lib</ImportLibrary>
+      <LinkErrorReporting></LinkErrorReporting>
+      <ProgramDataBaseFile>G:/Repositories/jaxeproj/bin_x64/MinSizeRel/vk_denoise.pdb</ProgramDataBaseFile>
+      <RandomizedBaseAddress></RandomizedBaseAddress>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\optix_denoiser;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\include;G:\Repositories\jaxeproj\vk_denoise\nvpro_core\extensions_vk_gen;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;G:\Repositories\jaxeproj\nvpro_core\third_party\imgui;G:\Repositories\jaxeproj\nvpro_core\third_party\implot;G:\Repositories\jaxeproj\nvpro_core\third_party\fmt\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glm;G:\Repositories\jaxeproj\nvpro_core\third_party\thread_pool\include;G:\Repositories\jaxeproj\nvpro_core\third_party\stb;G:\Repositories\jaxeproj\nvpro_core\third_party\tinygltf;G:\Repositories\jaxeproj\nvpro_core\third_party\tinyobjloader;G:\Repositories\jaxeproj\nvpro_core\third_party\cgltf;G:\Repositories\jaxeproj\nvpro_core\third_party\vma\include;G:\Repositories\jaxeproj\nvpro_core\third_party\NVTX\c\include;G:\Repositories\jaxeproj\nvpro_core\third_party\dxh\include\directx;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /external:I "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9/include" /external:I "C:/tools/vcpkg/installed/x64-windows/include" /Zc:__cplusplus /utf-8</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck></BufferSecurityCheck>
+      <CallingConvention></CallingConvention>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <DisableSpecificWarnings>26812;26451</DisableSpecificWarnings>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <FloatingPointModel></FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <MinimalRebuild></MinimalRebuild>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;IMGUI_DEFINE_MATH_OPERATORS;RESOURCE_DIRECTORY="G:/Repositories/jaxeproj/nvpro_core/resources/";NOMINMAX;USE_OPENXR;OPTIX9_PATH=R"(C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.1.0)";OPTIX9_VERSION_STR="9.1.0";NVP_SUPPORTS_OPTIX9;NVP_SUPPORTS_VULKANSDK;VK_ENABLE_BETA_EXTENSIONS;VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1;VK_USE_PLATFORM_WIN32_KHR;PROJECT_NAME="vk_denoise";PROJECT_RELDIRECTORY="../../vk_denoise/optix_denoiser/";PROJECT_DOWNLOAD_RELDIRECTORY="../../downloaded_resources/";PROJECT_NVPRO_CORE_RELDIRECTORY="../../nvpro_core/";_CRT_SECURE_NO_WARNINGS;GLM_FORCE_RADIANS;GLM_ENABLE_EXPERIMENTAL;GLM_FORCE_XYZW_ONLY;STBI_MSC_SECURE_CRT;CMAKE_INTDIR="RelWithDebInfo"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;IMGUI_DEFINE_MATH_OPERATORS;RESOURCE_DIRECTORY=\"G:/Repositories/jaxeproj/nvpro_core/resources/\";NOMINMAX;USE_OPENXR;OPTIX9_PATH=R\"(C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.1.0)\";OPTIX9_VERSION_STR=\"9.1.0\";NVP_SUPPORTS_OPTIX9;NVP_SUPPORTS_VULKANSDK;VK_ENABLE_BETA_EXTENSIONS;VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1;VK_USE_PLATFORM_WIN32_KHR;PROJECT_NAME=\"vk_denoise\";PROJECT_RELDIRECTORY=\"../../vk_denoise/optix_denoiser/\";PROJECT_DOWNLOAD_RELDIRECTORY=\"../../downloaded_resources/\";PROJECT_NVPRO_CORE_RELDIRECTORY=\"../../nvpro_core/\";_CRT_SECURE_NO_WARNINGS;GLM_FORCE_RADIANS;GLM_ENABLE_EXPERIMENTAL;GLM_FORCE_XYZW_ONLY;STBI_MSC_SECURE_CRT;CMAKE_INTDIR=\"RelWithDebInfo\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\optix_denoiser;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\include;G:\Repositories\jaxeproj\vk_denoise\nvpro_core\extensions_vk_gen;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;G:\Repositories\jaxeproj\nvpro_core\third_party\imgui;G:\Repositories\jaxeproj\nvpro_core\third_party\implot;G:\Repositories\jaxeproj\nvpro_core\third_party\fmt\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glm;G:\Repositories\jaxeproj\nvpro_core\third_party\thread_pool\include;G:\Repositories\jaxeproj\nvpro_core\third_party\stb;G:\Repositories\jaxeproj\nvpro_core\third_party\tinygltf;G:\Repositories\jaxeproj\nvpro_core\third_party\tinyobjloader;G:\Repositories\jaxeproj\nvpro_core\third_party\cgltf;G:\Repositories\jaxeproj\nvpro_core\third_party\vma\include;G:\Repositories\jaxeproj\nvpro_core\third_party\NVTX\c\include;G:\Repositories\jaxeproj\nvpro_core\third_party\dxh\include\directx;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\include;C:\tools\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>G:\Repositories\jaxeproj\vk_denoise\optix_denoiser;G:\Repositories\jaxeproj\nvpro_core;G:\Repositories\jaxeproj\nvpro_core\nvp;C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include;C:\VulkanSDK\1.4.335.0\include;G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\include;G:\Repositories\jaxeproj\vk_denoise\nvpro_core\extensions_vk_gen;G:\Repositories\jaxeproj\nvpro_core\third_party\glfw\include;G:\Repositories\jaxeproj\nvpro_core\third_party\imgui;G:\Repositories\jaxeproj\nvpro_core\third_party\implot;G:\Repositories\jaxeproj\nvpro_core\third_party\fmt\include;G:\Repositories\jaxeproj\nvpro_core\third_party\glm;G:\Repositories\jaxeproj\nvpro_core\third_party\thread_pool\include;G:\Repositories\jaxeproj\nvpro_core\third_party\stb;G:\Repositories\jaxeproj\nvpro_core\third_party\tinygltf;G:\Repositories\jaxeproj\nvpro_core\third_party\tinyobjloader;G:\Repositories\jaxeproj\nvpro_core\third_party\cgltf;G:\Repositories\jaxeproj\nvpro_core\third_party\vma\include;G:\Repositories\jaxeproj\nvpro_core\third_party\NVTX\c\include;G:\Repositories\jaxeproj\nvpro_core\third_party\dxh\include\directx;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\include;C:\tools\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <PostBuildEvent>
+      <Message></Message>
+      <Command>setlocal
+C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -noprofile -executionpolicy Bypass -file C:/tools/vcpkg/scripts/buildsystems/msbuild/applocal.ps1 -targetBinary G:/Repositories/jaxeproj/bin_x64/RelWithDebInfo/vk_denoise.exe -installedDir C:/tools/vcpkg/installed/x64-windows/bin -OutVariable out
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+    </PostBuildEvent>
+    <Link>
+      <AdditionalDependencies>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\lib\x64\cudart.lib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\lib\x64\cuda.lib;..\nvpro_core\RelWithDebInfo\nvpro_core_vk.lib;C:\VulkanSDK\1.4.335.0\Lib\vulkan-1.lib;C:\VulkanSDK\1.4.335.0\Lib\vulkan-1.lib;C:\tools\vcpkg\installed\x64-windows\lib\openxr_loader.lib;..\nvpro_core\third_party\glfw\src\RelWithDebInfo\glfw3.lib;..\nvpro_core\third_party\RelWithDebInfo\imgui.lib;..\nvpro_core\third_party\RelWithDebInfo\implot.lib;..\nvpro_core\third_party\RelWithDebInfo\fmt.lib;advapi32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <DataExecutionPrevention></DataExecutionPrevention>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImageHasSafeExceptionHandlers></ImageHasSafeExceptionHandlers>
+      <ImportLibrary>G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/RelWithDebInfo/vk_denoise.lib</ImportLibrary>
+      <LinkErrorReporting></LinkErrorReporting>
+      <ProgramDataBaseFile>G:/Repositories/jaxeproj/bin_x64/RelWithDebInfo/vk_denoise.pdb</ProgramDataBaseFile>
+      <RandomizedBaseAddress></RandomizedBaseAddress>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\compute_grid_minmax.comp">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating _autogen/compute_grid_minmax.comp.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn compute_grid_minmax_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/compute_grid_minmax.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/compute_grid_minmax.comp
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn compute_grid_minmax_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/compute_grid_minmax.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/compute_grid_minmax.comp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\compute_grid_minmax.comp.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating _autogen/compute_grid_minmax.comp.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn compute_grid_minmax_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/compute_grid_minmax.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/compute_grid_minmax.comp
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn compute_grid_minmax_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/compute_grid_minmax.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/compute_grid_minmax.comp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\compute_grid_minmax.comp.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating _autogen/compute_grid_minmax.comp.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn compute_grid_minmax_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/compute_grid_minmax.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/compute_grid_minmax.comp
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn compute_grid_minmax_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/compute_grid_minmax.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/compute_grid_minmax.comp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\compute_grid_minmax.comp.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating _autogen/compute_grid_minmax.comp.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn compute_grid_minmax_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/compute_grid_minmax.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/compute_grid_minmax.comp
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn compute_grid_minmax_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/compute_grid_minmax.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/compute_grid_minmax.comp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\compute_grid_minmax.comp.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\cpy_to_buffer.comp">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating _autogen/cpy_to_buffer.comp.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn cpy_to_buffer_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/cpy_to_buffer.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/cpy_to_buffer.comp
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn cpy_to_buffer_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/cpy_to_buffer.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/cpy_to_buffer.comp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\cpy_to_buffer.comp.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating _autogen/cpy_to_buffer.comp.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn cpy_to_buffer_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/cpy_to_buffer.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/cpy_to_buffer.comp
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn cpy_to_buffer_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/cpy_to_buffer.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/cpy_to_buffer.comp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\cpy_to_buffer.comp.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating _autogen/cpy_to_buffer.comp.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn cpy_to_buffer_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/cpy_to_buffer.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/cpy_to_buffer.comp
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn cpy_to_buffer_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/cpy_to_buffer.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/cpy_to_buffer.comp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\cpy_to_buffer.comp.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating _autogen/cpy_to_buffer.comp.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn cpy_to_buffer_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/cpy_to_buffer.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/cpy_to_buffer.comp
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn cpy_to_buffer_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/cpy_to_buffer.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/cpy_to_buffer.comp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\cpy_to_buffer.comp.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\cpy_to_img.comp">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating _autogen/cpy_to_img.comp.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn cpy_to_img_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/cpy_to_img.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/cpy_to_img.comp
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn cpy_to_img_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/cpy_to_img.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/cpy_to_img.comp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\cpy_to_img.comp.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating _autogen/cpy_to_img.comp.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn cpy_to_img_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/cpy_to_img.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/cpy_to_img.comp
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn cpy_to_img_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/cpy_to_img.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/cpy_to_img.comp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\cpy_to_img.comp.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating _autogen/cpy_to_img.comp.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn cpy_to_img_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/cpy_to_img.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/cpy_to_img.comp
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn cpy_to_img_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/cpy_to_img.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/cpy_to_img.comp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\cpy_to_img.comp.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating _autogen/cpy_to_img.comp.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn cpy_to_img_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/cpy_to_img.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/cpy_to_img.comp
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn cpy_to_img_comp -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/cpy_to_img.comp.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/cpy_to_img.comp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\cpy_to_img.comp.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\gbuffers.rchit">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating _autogen/gbuffers.rchit.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn gbuffers_rchit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/gbuffers.rchit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/gbuffers.rchit
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn gbuffers_rchit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/gbuffers.rchit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/gbuffers.rchit
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\gbuffers.rchit.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating _autogen/gbuffers.rchit.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn gbuffers_rchit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/gbuffers.rchit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/gbuffers.rchit
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn gbuffers_rchit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/gbuffers.rchit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/gbuffers.rchit
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\gbuffers.rchit.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating _autogen/gbuffers.rchit.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn gbuffers_rchit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/gbuffers.rchit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/gbuffers.rchit
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn gbuffers_rchit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/gbuffers.rchit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/gbuffers.rchit
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\gbuffers.rchit.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating _autogen/gbuffers.rchit.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn gbuffers_rchit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/gbuffers.rchit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/gbuffers.rchit
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn gbuffers_rchit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/gbuffers.rchit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/gbuffers.rchit
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\gbuffers.rchit.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\gbuffers.rmiss">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating _autogen/gbuffers.rmiss.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn gbuffers_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/gbuffers.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/gbuffers.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn gbuffers_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/gbuffers.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/gbuffers.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\gbuffers.rmiss.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating _autogen/gbuffers.rmiss.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn gbuffers_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/gbuffers.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/gbuffers.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn gbuffers_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/gbuffers.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/gbuffers.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\gbuffers.rmiss.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating _autogen/gbuffers.rmiss.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn gbuffers_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/gbuffers.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/gbuffers.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn gbuffers_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/gbuffers.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/gbuffers.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\gbuffers.rmiss.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating _autogen/gbuffers.rmiss.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn gbuffers_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/gbuffers.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/gbuffers.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn gbuffers_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/gbuffers.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/gbuffers.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\gbuffers.rmiss.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\pathtrace.rahit">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating _autogen/pathtrace.rahit.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rahit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rahit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rahit
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rahit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rahit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rahit
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\pathtrace.rahit.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating _autogen/pathtrace.rahit.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rahit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rahit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rahit
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rahit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rahit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rahit
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\pathtrace.rahit.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating _autogen/pathtrace.rahit.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rahit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rahit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rahit
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rahit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rahit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rahit
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\pathtrace.rahit.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating _autogen/pathtrace.rahit.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rahit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rahit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rahit
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rahit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rahit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rahit
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\pathtrace.rahit.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\pathtrace.rchit">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating _autogen/pathtrace.rchit.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rchit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rchit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rchit
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rchit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rchit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rchit
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\pathtrace.rchit.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating _autogen/pathtrace.rchit.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rchit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rchit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rchit
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rchit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rchit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rchit
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\pathtrace.rchit.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating _autogen/pathtrace.rchit.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rchit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rchit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rchit
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rchit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rchit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rchit
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\pathtrace.rchit.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating _autogen/pathtrace.rchit.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rchit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rchit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rchit
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rchit -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rchit.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rchit
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\pathtrace.rchit.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\pathtrace.rgen">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating _autogen/pathtrace.rgen.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rgen -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rgen.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rgen
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rgen -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rgen.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rgen
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\pathtrace.rgen.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating _autogen/pathtrace.rgen.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rgen -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rgen.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rgen
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rgen -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rgen.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rgen
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\pathtrace.rgen.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating _autogen/pathtrace.rgen.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rgen -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rgen.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rgen
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rgen -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rgen.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rgen
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\pathtrace.rgen.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating _autogen/pathtrace.rgen.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rgen -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rgen.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rgen
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rgen -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rgen.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rgen
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\pathtrace.rgen.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\pathtrace.rmiss">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating _autogen/pathtrace.rmiss.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\pathtrace.rmiss.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating _autogen/pathtrace.rmiss.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\pathtrace.rmiss.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating _autogen/pathtrace.rmiss.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\pathtrace.rmiss.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating _autogen/pathtrace.rmiss.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn pathtrace_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/pathtrace.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/pathtrace.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\pathtrace.rmiss.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\shadow.rmiss">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating _autogen/shadow.rmiss.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn shadow_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/shadow.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/shadow.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn shadow_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/shadow.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/shadow.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\shadow.rmiss.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating _autogen/shadow.rmiss.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn shadow_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/shadow.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/shadow.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn shadow_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/shadow.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/shadow.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\shadow.rmiss.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Generating _autogen/shadow.rmiss.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn shadow_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/shadow.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/shadow.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn shadow_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/shadow.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/shadow.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\shadow.rmiss.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Generating _autogen/shadow.rmiss.h</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+cd G:\Repositories\jaxeproj\vk_denoise\optix_denoiser
+if %errorlevel% neq 0 goto :cmEnd
+G:
+if %errorlevel% neq 0 goto :cmEnd
+echo C:/VulkanSDK/1.4.335.0/Bin/glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn shadow_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/shadow.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/shadow.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+C:\VulkanSDK\1.4.335.0\Bin\glslangValidator.exe -IG:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders -IG:/Repositories/jaxeproj/nvpro_core -g --target-env vulkan1.3 --vn shadow_rmiss -o G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/_autogen/shadow.rmiss.h G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/shaders/shadow.rmiss
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\_autogen\shadow.rmiss.h</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\CMakeLists.txt">
+      <UseUtf8Encoding>Always</UseUtf8Encoding>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SG:/Repositories/jaxeproj/vk_denoise -BG:/Repositories/jaxeproj/vk_denoise --check-stamp-file G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeFindDependencyMacro.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckIncludeFile.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindCUDAToolkit.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindVulkan.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CheckSourceCompiles.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncpp-namespaced-targets.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncpp-targets-debug.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncpp-targets-release.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncpp-targets.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncppConfig.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncppConfigVersion.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRConfig.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRConfigVersion.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRTargets-debug.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRTargets-release.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRTargets.cmake;G:\Repositories\jaxeproj\nvpro_core\cmake\find\FindOptix9.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SG:/Repositories/jaxeproj/vk_denoise -BG:/Repositories/jaxeproj/vk_denoise --check-stamp-file G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeFindDependencyMacro.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckIncludeFile.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindCUDAToolkit.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindVulkan.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CheckSourceCompiles.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncpp-namespaced-targets.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncpp-targets-debug.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncpp-targets-release.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncpp-targets.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncppConfig.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncppConfigVersion.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRConfig.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRConfigVersion.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRTargets-debug.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRTargets-release.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRTargets.cmake;G:\Repositories\jaxeproj\nvpro_core\cmake\find\FindOptix9.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Building Custom Rule G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SG:/Repositories/jaxeproj/vk_denoise -BG:/Repositories/jaxeproj/vk_denoise --check-stamp-file G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeFindDependencyMacro.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckIncludeFile.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindCUDAToolkit.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindVulkan.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CheckSourceCompiles.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncpp-namespaced-targets.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncpp-targets-debug.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncpp-targets-release.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncpp-targets.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncppConfig.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncppConfigVersion.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRConfig.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRConfigVersion.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRTargets-debug.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRTargets-release.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRTargets.cmake;G:\Repositories\jaxeproj\nvpro_core\cmake\find\FindOptix9.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Building Custom Rule G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SG:/Repositories/jaxeproj/vk_denoise -BG:/Repositories/jaxeproj/vk_denoise --check-stamp-file G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Program Files\CMake\share\cmake-4.2\Modules\CMakeFindDependencyMacro.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckIncludeFile.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindCUDAToolkit.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\FindVulkan.cmake;C:\Program Files\CMake\share\cmake-4.2\Modules\Internal\CheckSourceCompiles.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncpp-namespaced-targets.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncpp-targets-debug.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncpp-targets-release.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncpp-targets.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncppConfig.cmake;C:\tools\vcpkg\installed\x64-windows\share\jsoncpp\jsoncppConfigVersion.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRConfig.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRConfigVersion.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRTargets-debug.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRTargets-release.cmake;C:\tools\vcpkg\installed\x64-windows\share\openxr-loader\OpenXRTargets.cmake;G:\Repositories\jaxeproj\nvpro_core\cmake\find\FindOptix9.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\src\denoiser.cpp" />
+    <ClInclude Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\src\denoiser.hpp" />
+    <ClCompile Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\src\optix_denoiser.cpp" />
+    <ClCompile Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\src\tinygltf_impl.cpp" />
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\nvp\resources.h" />
+    <ResourceCompile Include="G:\Repositories\jaxeproj\nvpro_core\nvp\resources.rc" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\nvp\perproject_globals.cpp" />
+    <ClCompile Include="G:\Repositories\jaxeproj\nvpro_core\nvvk\nsight_aftermath_vk.cpp" />
+    <ClInclude Include="C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.1.0\include\optix.h" />
+    <ClInclude Include="C:\VulkanSDK\1.4.335.0\include\vulkan\vulkan_core.h" />
+    <None Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\compress.glsl">
+    </None>
+    <ClInclude Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\device_host.h" />
+    <ClInclude Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\dh_bindings.h" />
+    <None Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\get_hit.glsl">
+    </None>
+    <None Include="G:\Repositories\jaxeproj\vk_denoise\optix_denoiser\shaders\payload.glsl">
+    </None>
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\glm\glm\glm.hpp" />
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\tinygltf\tiny_gltf.h" />
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\tinygltf\json.hpp" />
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\tinyobjloader\tiny_obj_loader.h" />
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\vma\include\vk_mem_alloc.h" />
+    <ClInclude Include="G:\Repositories\jaxeproj\nvpro_core\third_party\NVTX\c\include\nvtx3\nvToolsExt.h" />
+  </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <ProjectReference Include="G:\Repositories\jaxeproj\vk_denoise\ZERO_CHECK.vcxproj">
+      <Project>{7F24D410-0303-3588-BB82-369258B91A00}</Project>
+      <Name>ZERO_CHECK</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+    <ProjectReference Include="G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\fmt.vcxproj">
+      <Project>{1A339EB9-8075-3AD6-BB83-46CE2EBA4776}</Project>
+      <Name>fmt</Name>
+    </ProjectReference>
+    <ProjectReference Include="G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\glfw\src\glfw.vcxproj">
+      <Project>{416568CE-968D-3795-83A1-838B04D773AB}</Project>
+      <Name>glfw</Name>
+    </ProjectReference>
+    <ProjectReference Include="G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\imgui.vcxproj">
+      <Project>{07A5E74C-3AE0-316D-9917-DA9E56DD1FBA}</Project>
+      <Name>imgui</Name>
+    </ProjectReference>
+    <ProjectReference Include="G:\Repositories\jaxeproj\vk_denoise\nvpro_core\third_party\implot.vcxproj">
+      <Project>{563DDE2E-E8DB-3FD0-8C3E-C72AC17E8BB9}</Project>
+      <Name>implot</Name>
+    </ProjectReference>
+    <ProjectReference Include="G:\Repositories\jaxeproj\vk_denoise\nvpro_core\nvpro_core.vcxproj">
+      <Project>{17894421-EB0D-397C-BA5C-C2039EA73B7D}</Project>
+      <Name>nvpro_core</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

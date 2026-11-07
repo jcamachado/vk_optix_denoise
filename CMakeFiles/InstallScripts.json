@@ -1,0 +1,12 @@
+{
+	"InstallScripts" : 
+	[
+		"G:/Repositories/jaxeproj/vk_denoise/cmake_install.cmake",
+		"G:/Repositories/jaxeproj/vk_denoise/optix_denoiser/cmake_install.cmake",
+		"G:/Repositories/jaxeproj/vk_denoise/nvpro_core/cmake_install.cmake",
+		"G:/Repositories/jaxeproj/vk_denoise/nvpro_core/third_party/cmake_install.cmake",
+		"G:/Repositories/jaxeproj/vk_denoise/nvpro_core/third_party/glfw/cmake_install.cmake",
+		"G:/Repositories/jaxeproj/vk_denoise/nvpro_core/third_party/glfw/src/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
