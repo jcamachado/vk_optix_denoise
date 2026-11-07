@@ -127,6 +127,8 @@ float leftDepthThreshold =  1.0;    // Quad 2
 float rightDepthThreshold =  1.0;   // Quad 0
 float bottomDepthThreshold =  2.5;  // Quad 3
 float chosenLinearDepth = 0.0;
+float THETA_TOL_RAD = 0.005929; // 0.34 degrees in radians 1223.0 * 4.848137e-6;
+
 /*
     0 = Raytrace, 
     1 = normal reprojected mid range, 
@@ -197,7 +199,7 @@ float getWorldDepth(float depthMeters) {
 // baseline b.
 float deltaZMaxForDepth(float Z)
 {
-    const float THETA_TOL_RAD = 1223.0 * 4.848137e-6;
+    
     return THETA_TOL_RAD * Z * Z / max(eyeSeparation, 1e-4);
 }
 
@@ -246,6 +248,22 @@ int getEyeQuadrant()
     }*/
 }
 
+bool isMinQuadDepth(float depth){
+    int quad = getEyeQuadrant();
+    if (quad == 0 && depth < 0.5){
+        return false;        
+    }
+    if (quad == 1 && depth < 1.0){
+        return false;        
+    }
+    if (quad == 2 && depth < 1.){
+        return false;        
+    }
+    if (quad == 3 && depth < 2.0){
+        return false;        
+    }
+    return true;
+}
 
 /* Parallax angle calculation
   theta = 2 * atan(DX / (2 * D)) where DX = parallax in pixels
@@ -627,7 +645,7 @@ bool depthNeighborhoodStable(ivec2 center, int M, float maxDeltaMeters)
 
 // Add this confidence calculation function
 // Check depth continuity in 3x3 neighborhood
-float calculateReprojectionConfidence(ivec2 coord, float rawBaseDepth, float parallax) {
+/*float calculateReprojectionConfidence(ivec2 coord, float rawBaseDepth, float parallax) {
     // baseDepth = getChosenDepth(rawBaseDepth);
     float depthVariance = 0.0;
     int validSamples = 0;
@@ -656,7 +674,18 @@ float calculateReprojectionConfidence(ivec2 coord, float rawBaseDepth, float par
     float parallaxConfidence = 1.0 - smoothstep(5.0, 30.0, abs(parallax));
     return depthConfidence * parallaxConfidence; // Combine confidences
 }
+*/
+/*
+float calculateReprojectionConfidence(ivec2 coord, float zCenter, float parallaxPixels)
+{
+    float dTol = THETA_TOL_RAD * gFocalLengthPixels;
 
+    float parallaxRatio      = abs(parallaxPixels) / max(dTol, 1e-6);
+    float parallaxConfidence = 1.0 - smoothstep(0.5, 1.0, parallaxRatio);
+
+    return parallaxConfidence;
+}
+*/
 
 // Advanced DIBR Coordinate Synthesis
 // Finds the exact source coordinate in the dominant eye that corresponds to the current non-dominant pixel
@@ -803,21 +832,20 @@ bool performReprojection(ivec2 otherViewCoord, float depth, float dist, float ra
             dominantCoord.x = max(0, min(dominantCoord.x, halfWidth - 1));
         }
         
-        /*
+        
         // --- INTEGRATE CLINICAL DATA ---
-        float actualDepthMeters = depth;
-        int quadrant = getEyeQuadrant();
+        //float actualDepthMeters = depth;
+        bool isMinDepth = isMinQuadDepth(depth);
             
-        float dynamicToleranceMeters = calculatePerceptualTolerance(
+        /*float dynamicToleranceMeters = calculatePerceptualTolerance(
             actualDepthMeters, 
             dist, 
             gFocalLengthPixels,
             quadrant
-        );
+        );*/
         
         // Check if the neighborhood is stable based on perceptual constraints
-        skipWarping = !depthNeighborhoodStable(dominantCoord, reprojCheckSize, dynamicToleranceMeters);
-        */
+        //skipWarping = !depthNeighborhoodStable(dominantCoord, reprojCheckSize, dynamicToleranceMeters);
                 // --- Perceptual depth-spread gate ---
         // The allowed depth variation in the 3x3 neighborhood is DeltaZ_max(Z),
         // the depth error at which a point's binocular disparity changes by
@@ -826,15 +854,13 @@ bool performReprojection(ivec2 otherViewCoord, float depth, float dist, float ra
         float dzMax = deltaZMaxForDepth(depth);
 
         // Check if the neighborhood is stable under the perceptual threshold
-        skipWarping = !depthNeighborhoodStable(dominantCoord, reprojCheckSize, dzMax);
+        bool isNHStable= !depthNeighborhoodStable(dominantCoord, reprojCheckSize, dzMax);
         // --- FORCE WARPING IN THE PERIPHERY ---
         // If the depth neighborhood is unstable (like a heavy occlusion border on the floor),
         // but we are far in the periphery (dist > radius), the glitch from a strict skip
         // looks much worse than a stretched reprojected pixel.
         // So, in the outer boundary, we IGNORE the skip and force the warp anyway!
-        if (skipWarping && dist > radius * 0.8) {
-            skipWarping = false; // Override the strict cutoff
-        }
+        skipWarping = isNHStable  && dist > radius * 0.8 && !isMinDepth;
         
         // Try to sample from warped coordinate
         if (!skipWarping && dominantCoord.x >= 0 && dominantCoord.x < int(gl_LaunchSizeEXT.x) &&
@@ -1224,9 +1250,11 @@ void main()
             doReprojection = false;
         }
     
-        float confidence = calculateReprojectionConfidence(otherViewCoord, depth, parallaxPixels);
-        if (confidence < 1 - depth) {
-            doReprojection = false; // too noisy to reproject this pixel
+        if (doReprojection) {
+            float dTol = THETA_TOL_RAD * gFocalLengthPixels;
+            if (abs(parallaxPixels) > dTol) {
+                doReprojection = false;
+            }
         }
     }
 
